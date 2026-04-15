@@ -106,19 +106,45 @@ class DashboardUI {
             <div class="result-card-keywords">${keywords}</div>
             <div class="result-card-footer">
                 <span class="result-vault-path">📂 ${this._escapeHtml(data.vault_path || '')}</span>
-                <button class="result-action-btn delete-btn" data-id="${data.id}" title="노트 삭제">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                    삭제
-                </button>
+                <div class="delete-area">
+                    <button class="result-action-btn delete-btn" data-id="${data.id}" title="노트 삭제">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        삭제
+                    </button>
+                    <div class="delete-confirm" style="display:none;">
+                        <span class="delete-confirm-text">삭제할까요?</span>
+                        <button class="delete-confirm-yes">확인</button>
+                        <button class="delete-confirm-no">취소</button>
+                    </div>
+                </div>
             </div>
         `;
 
-        // Attach delete handler
-        card.querySelector('.delete-btn').addEventListener('click', (e) => {
+        const deleteBtn = card.querySelector('.delete-btn');
+        const deleteConfirm = card.querySelector('.delete-confirm');
+        const confirmYes = card.querySelector('.delete-confirm-yes');
+        const confirmNo = card.querySelector('.delete-confirm-no');
+
+        deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (confirm(`"${data.title}" 노트를 삭제하시겠습니까?\n\nVault에서 노트 파일과 관련 링크가 모두 제거됩니다.`)) {
-                this._onDeleteNote(data.id);
-            }
+            e.preventDefault();
+            deleteBtn.style.display = 'none';
+            deleteConfirm.style.display = 'flex';
+        });
+
+        confirmNo.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            deleteConfirm.style.display = 'none';
+            deleteBtn.style.display = 'flex';
+        });
+
+        confirmYes.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            confirmYes.disabled = true;
+            confirmYes.textContent = '삭제 중...';
+            this._onDeleteNote(data.id);
         });
 
         // Prepend (newest first)
