@@ -100,7 +100,13 @@ async def _call_gemini(user_prompt: str) -> str:
     import google.generativeai as genai
 
     genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel(
+        settings.gemini_model,
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",
+            temperature=0.3,
+        ),
+    )
 
     full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
     response = model.generate_content(full_prompt)
