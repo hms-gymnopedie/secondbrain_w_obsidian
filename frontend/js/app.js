@@ -36,8 +36,13 @@
 
             ws.onmessage = (event) => {
                 try {
-                    const status = JSON.parse(event.data);
-                    handleProcessingUpdate(status);
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'deleted') {
+                        dashboard.removeResultCard(data.id);
+                        fetchHistory();
+                        return;
+                    }
+                    handleProcessingUpdate(data);
                 } catch (e) {
                     console.error('WebSocket message parse error:', e);
                 }
@@ -66,11 +71,7 @@
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
 
-        // Add items to queue immediately
-        files.forEach(file => {
-            const tempId = `temp-${Date.now()}-${file.name}`;
-            dashboard.addQueueItem(tempId, file.name, getSourceType(file.name));
-        });
+        dashboard.showToast(`📤 ${files.length}개 파일 업로드 중...`, 'info');
 
         try {
             const response = await fetch(`${API_BASE}/api/upload`, {
@@ -88,9 +89,8 @@
                 if (result.status === 'error') {
                     dashboard.showToast(`❌ ${result.filename}: ${result.message}`, 'error');
                 } else {
-                    dashboard.showToast(`📤 ${result.filename} 업로드 완료`, 'info');
-                    // Replace temp queue item
                     dashboard.addQueueItem(result.id, result.filename, result.source_type);
+                    dashboard.showToast(`✅ ${result.filename} 처리 시작`, 'info');
                 }
             });
 
@@ -228,11 +228,30 @@
         dashboard.showToast('새로고침 완료', 'info');
     });
 
+    // -------- Delete Note --------
+    async function handleDeleteNote(noteId) {
+        try {
+            const response = await fetch(`${API_BASE}/api/note/${noteId}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Delete failed');
+            }
+
+            dashboard.removeResultCard(noteId);
+            dashboard.showToast('🗑️ 노트가 삭제되었습니다', 'success');
+            fetchHistory();
+        } catch (error) {
+            dashboard.showToast(`삭제 실패: ${error.message}`, 'error');
+        }
+    }
+
+    dashboard.setDeleteHandler(handleDeleteNote);
+
     // -------- Initialize --------
     connectWebSocket();
     fetchHistory();
-
-    // Set vault path display
-    document.getElementById('vault-path').textContent = 'Vault: ./vault';
 
 })();

@@ -937,6 +937,12 @@ body {
     color: var(--accent-blue);
 }
 
+.result-action-btn.delete-btn:hover {
+    background: rgba(248, 81, 73, 0.1);
+    color: var(--accent-red);
+    border-color: rgba(248, 81, 73, 0.3);
+}
+
 /* ---------- Toast Notifications ---------- */
 .toast-container {
     position: fixed;

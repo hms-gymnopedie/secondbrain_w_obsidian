@@ -106,8 +106,20 @@ class DashboardUI {
             <div class="result-card-keywords">${keywords}</div>
             <div class="result-card-footer">
                 <span class="result-vault-path">📂 ${this._escapeHtml(data.vault_path || '')}</span>
+                <button class="result-action-btn delete-btn" data-id="${data.id}" title="노트 삭제">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    삭제
+                </button>
             </div>
         `;
+
+        // Attach delete handler
+        card.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`"${data.title}" 노트를 삭제하시겠습니까?\n\nVault에서 노트 파일과 관련 링크가 모두 제거됩니다.`)) {
+                this._onDeleteNote(data.id);
+            }
+        });
 
         // Prepend (newest first)
         this.resultsGrid.prepend(card);
@@ -115,6 +127,30 @@ class DashboardUI {
 
         // Update stats
         this._updateStats();
+    }
+
+    removeResultCard(id) {
+        const card = document.getElementById(`result-${id}`);
+        if (card) {
+            card.style.transition = 'all 0.4s ease';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.95) translateY(-10px)';
+            setTimeout(() => card.remove(), 400);
+        }
+        this.resultCards.delete(id);
+        this._updateStats();
+
+        if (this.resultCards.size === 0) {
+            this.resultsSection.style.display = 'none';
+        }
+    }
+
+    setDeleteHandler(handler) {
+        this._onDeleteNote = handler;
+    }
+
+    _onDeleteNote(id) {
+        // Default no-op, overridden by setDeleteHandler
     }
 
     // -------- History --------

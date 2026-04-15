@@ -167,6 +167,50 @@ async def get_note(note_id: str):
     raise HTTPException(status_code=404, detail="노트를 찾을 수 없습니다.")
 
 
+@router.delete("/note/{note_id}")
+async def delete_note(note_id: str):
+    """Delete a note and clean up all backlinks and MOC references."""
+    from backend.services.obsidian_writer import delete_note_from_vault
+
+    # Find the history item
+    item = None
+    for h in processing_history:
+        if h.id == note_id:
+            item = h
+            break
+
+    if not item:
+        raise HTTPException(status_code=404, detail="노트를 찾을 수 없습니다.")
+
+    # Delete from vault (file + backlinks + MOC)
+    if item.vault_path and item.status == ProcessingStage.DONE:
+        try:
+            delete_note_from_vault(
+                vault_path=item.vault_path,
+                note_title=item.title,
+                keywords=item.keywords,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"노트 삭제 실패: {str(e)}")
+
+    # Remove from history
+    processing_history.remove(item)
+
+    # Broadcast deletion
+    import json
+    msg = json.dumps({"type": "deleted", "id": note_id})
+    disconnected = []
+    for conn in active_connections:
+        try:
+            await conn.send_text(msg)
+        except Exception:
+            disconnected.append(conn)
+    for conn in disconnected:
+        active_connections.remove(conn)
+
+    return {"message": "노트가 삭제되었습니다.", "id": note_id}
+
+
 async def _process_file(
     file_id: str,
     file_path: str,

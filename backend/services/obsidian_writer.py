@@ -203,3 +203,104 @@ def _add_backlink(
             except Exception:
                 pass
             break
+
+
+def delete_note_from_vault(
+    vault_path: str,
+    note_title: str,
+    keywords: list[str] = None,
+) -> None:
+    """Delete a note from the vault and clean up all references.
+
+    1. Delete the note file itself
+    2. Remove backlinks from other notes that reference this note
+    3. Remove entries from MOC files
+    """
+    import re
+
+    vault = Path(settings.vault_path).resolve()
+    note_file = vault / vault_path
+
+    # 1. Delete the note file
+    if note_file.exists():
+        note_file.unlink()
+
+    # 2. Remove backlinks from all other notes
+    link_pattern = f"[[{note_title}]]"
+    line_patterns = [
+        f"- [[{note_title}]]",
+        f"- {link_pattern}",
+        f'- "{link_pattern}"',
+    ]
+
+    for md_file in vault.rglob("*.md"):
+        if md_file == note_file:
+            continue
+        try:
+            content = md_file.read_text(encoding="utf-8")
+            if link_pattern not in content:
+                continue
+
+            original = content
+            # Remove lines containing the link
+            for pattern in line_patterns:
+                content = content.replace(f"{pattern}\n", "")
+                content = content.replace(pattern, "")
+
+            # Also clean frontmatter related field
+            content = re.sub(
+                rf'- "\[\[{re.escape(note_title)}\]\]"\n?',
+                "",
+                content,
+            )
+
+            if content != original:
+                md_file.write_text(content, encoding="utf-8")
+        except Exception:
+            continue
+
+    # 3. Remove entries from MOC files
+    if keywords:
+        moc_dir = vault / "02_MOC"
+        if moc_dir.exists():
+            for keyword in keywords:
+                moc_file = moc_dir / f"{sanitize_filename(keyword)}.md"
+                if moc_file.exists():
+                    try:
+                        content = moc_file.read_text(encoding="utf-8")
+                        original = content
+                        for pattern in line_patterns:
+                            content = content.replace(f"{pattern}\n", "")
+                            content = content.replace(pattern, "")
+
+                        if content != original:
+                            # Check if MOC has no more note links
+                            remaining_links = re.findall(r"\[\[.+?\]\]", content)
+                            if not remaining_links:
+                                # Delete empty MOC
+                                moc_file.unlink()
+                                # Remove from index
+                                _remove_from_moc_index(keyword)
+                            else:
+                                moc_file.write_text(content, encoding="utf-8")
+                    except Exception:
+                        continue
+
+
+def _remove_from_moc_index(keyword: str) -> None:
+    """Remove a keyword entry from the MOC index."""
+    vault = Path(settings.vault_path).resolve()
+    index_path = vault / "02_MOC" / "_Index.md"
+
+    if not index_path.exists():
+        return
+
+    try:
+        content = index_path.read_text(encoding="utf-8")
+        link = f"- [[{keyword}]]"
+        content = content.replace(f"{link}\n", "")
+        content = content.replace(link, "")
+        index_path.write_text(content, encoding="utf-8")
+    except Exception:
+        pass
+
