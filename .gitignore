@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Environment
+.env
+.env.local
+
+# Uploads (temporary)
+uploads/*
+!uploads/.gitkeep
+
+# Obsidian vault user data
+vault/.obsidian/workspace.json
+vault/.obsidian/workspace-mobile.json
+vault/.trash/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
