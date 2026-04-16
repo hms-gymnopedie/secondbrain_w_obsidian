@@ -7,17 +7,9 @@
     <title>Second Brain 🧠</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
-    <!-- Ambient background -->
-    <div class="ambient-bg">
-        <div class="ambient-orb orb-1"></div>
-        <div class="ambient-orb orb-2"></div>
-        <div class="ambient-orb orb-3"></div>
-    </div>
-
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
@@ -78,6 +70,9 @@
                     <p class="header-subtitle" id="vault-path">Vault 초기화 중...</p>
                 </div>
                 <div class="header-actions">
+                    <button class="btn btn-ghost" id="theme-toggle" title="테마 변경">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="sun-icon" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    </button>
                     <button class="btn btn-ghost" id="btn-refresh" title="새로고침">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
                     </button>
@@ -174,7 +169,7 @@
     <div class="toast-container" id="toast-container"></div>
 
     <script src="js/dropzone.js?v=2"></script>
-    <script src="js/dashboard.js?v=4"></script>
-    <script src="js/app.js?v=5"></script>
+    <script src="js/dashboard.js?v=6"></script>
+    <script src="js/app.js?v=6"></script>
 </body>
 </html>

@@ -5,36 +5,36 @@
 
 /* ---------- CSS Custom Properties ---------- */
 :root {
-    /* Colors - Obsidian-inspired dark palette */
-    --bg-primary: #0d1117;
-    --bg-secondary: #161b22;
-    --bg-tertiary: #1c2128;
-    --bg-card: rgba(22, 27, 34, 0.8);
-    --bg-glass: rgba(30, 37, 48, 0.6);
-    --bg-hover: rgba(48, 54, 61, 0.6);
+    /* Colors - Apple Light Theme */
+    --bg-primary: #F5F5F7;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F2F2F7;
+    --bg-card: rgba(255, 255, 255, 0.7);
+    --bg-glass: rgba(255, 255, 255, 0.75);
+    --bg-hover: rgba(0, 0, 0, 0.04);
 
-    --text-primary: #e6edf3;
-    --text-secondary: #8b949e;
-    --text-tertiary: #6e7681;
-    --text-accent: #58a6ff;
+    --text-primary: #1D1D1F;
+    --text-secondary: #86868B;
+    --text-tertiary: #A1A1A6;
+    --text-accent: #007AFF;
 
-    --border-primary: rgba(48, 54, 61, 0.8);
-    --border-glass: rgba(99, 110, 123, 0.2);
+    --border-primary: rgba(0, 0, 0, 0.08);
+    --border-glass: rgba(0, 0, 0, 0.05);
 
     /* Accent colors */
-    --accent-blue: #58a6ff;
-    --accent-purple: #bc8cff;
-    --accent-green: #3fb950;
-    --accent-orange: #f0883e;
-    --accent-red: #f85149;
-    --accent-cyan: #39d2c0;
-    --accent-pink: #f778ba;
+    --accent-blue: #007AFF;
+    --accent-purple: #AF52DE;
+    --accent-green: #34C759;
+    --accent-orange: #FF9500;
+    --accent-red: #FF3B30;
+    --accent-cyan: #32ADE6;
+    --accent-pink: #FF2D55;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-accent: linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%);
-    --gradient-success: linear-gradient(135deg, #3fb950 0%, #39d2c0 100%);
-    --gradient-warm: linear-gradient(135deg, #f0883e 0%, #f778ba 100%);
+    --gradient-primary: linear-gradient(135deg, #007AFF 0%, #32ADE6 100%);
+    --gradient-accent: linear-gradient(135deg, #007AFF 0%, #AF52DE 100%);
+    --gradient-success: linear-gradient(135deg, #34C759 0%, #32ADE6 100%);
+    --gradient-warm: linear-gradient(135deg, #FF9500 0%, #FF2D55 100%);
 
     /* Spacing */
     --space-xs: 4px;
@@ -45,27 +45,59 @@
     --space-2xl: 48px;
 
     /* Typography */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, Liberation Mono, monospace;
 
     /* Sizes */
-    --sidebar-width: 300px;
-    --header-height: 64px;
+    --sidebar-width: 280px;
+    --header-height: 60px;
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
 
     /* Shadows */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 20px rgba(88, 166, 255, 0.15);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+    --shadow-glow: 0 0 20px rgba(0, 122, 255, 0.2);
 
     /* Transitions */
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+    /* Colors - Apple Dark Theme */
+    --bg-primary: #000000;
+    --bg-secondary: #1C1C1E;
+    --bg-tertiary: #2C2C2E;
+    --bg-card: rgba(28, 28, 30, 0.7);
+    --bg-glass: rgba(28, 28, 30, 0.75);
+    --bg-hover: rgba(255, 255, 255, 0.08);
+
+    --text-primary: #F5F5F7;
+    --text-secondary: #86868B;
+    --text-tertiary: #636366;
+    --text-accent: #0A84FF;
+
+    --border-primary: rgba(255, 255, 255, 0.15);
+    --border-glass: rgba(255, 255, 255, 0.1);
+
+    /* Apple Dark mode accents are slightly brighter for contrast */
+    --accent-blue: #0A84FF;
+    --accent-purple: #BF5AF2;
+    --accent-green: #30D158;
+    --accent-orange: #FF9F0A;
+    --accent-red: #FF453A;
+    --accent-cyan: #64D2FF;
+    --accent-pink: #FF375F;
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.8);
+    --shadow-glow: 0 0 20px rgba(10, 132, 255, 0.25);
 }
 
 /* ---------- Reset & Base ---------- */
@@ -85,62 +117,11 @@ body {
     font-family: var(--font-sans);
     background: var(--bg-primary);
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
     overflow: hidden;
     height: 100vh;
-}
-
-/* ---------- Ambient Background ---------- */
-.ambient-bg {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-    overflow: hidden;
-}
-
-.ambient-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.15;
-    animation: float 20s ease-in-out infinite;
-}
-
-.orb-1 {
-    width: 400px;
-    height: 400px;
-    background: var(--accent-purple);
-    top: -100px;
-    right: -100px;
-    animation-delay: 0s;
-}
-
-.orb-2 {
-    width: 300px;
-    height: 300px;
-    background: var(--accent-blue);
-    bottom: -80px;
-    left: 10%;
-    animation-delay: -7s;
-}
-
-.orb-3 {
-    width: 250px;
-    height: 250px;
-    background: var(--accent-cyan);
-    top: 40%;
-    left: 50%;
-    animation-delay: -14s;
-}
-
-@keyframes float {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, -30px) scale(1.05); }
-    66% { transform: translate(-20px, 20px) scale(0.95); }
+    transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 /* ---------- App Container ---------- */
@@ -184,22 +165,12 @@ body {
 
 .logo-icon {
     font-size: 32px;
-    filter: drop-shadow(0 0 8px rgba(188, 140, 255, 0.4));
-    animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.08); }
 }
 
 .logo-text h1 {
     font-size: 18px;
     font-weight: 700;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary);
     letter-spacing: -0.02em;
 }
 
@@ -233,10 +204,7 @@ body {
 .stat-number {
     font-size: 20px;
     font-weight: 700;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary);
     font-family: var(--font-mono);
 }
 
@@ -367,13 +335,11 @@ body {
 
 .status-dot.connected {
     background: var(--accent-green);
-    box-shadow: 0 0 8px rgba(63, 185, 80, 0.5);
-    animation: blink 2s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(52, 199, 89, 0.4);
 }
 
 .status-dot.disconnected {
     background: var(--accent-red);
-    box-shadow: 0 0 8px rgba(248, 81, 73, 0.5);
 }
 
 @keyframes blink {
@@ -397,8 +363,9 @@ body {
     gap: var(--space-md);
     padding: var(--space-md) var(--space-xl);
     border-bottom: 1px solid var(--border-primary);
-    background: rgba(13, 17, 23, 0.8);
+    background: var(--bg-glass);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     position: sticky;
     top: 0;
     z-index: 5;
@@ -459,24 +426,26 @@ body {
 }
 
 .btn-primary {
-    background: var(--gradient-primary);
+    background: var(--accent-blue);
     color: white;
-    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.3);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+    box-shadow: var(--shadow-md);
+    filter: brightness(1.05);
     transform: translateY(-1px);
 }
 
 .btn-accent {
-    background: var(--gradient-accent);
+    background: var(--accent-purple);
     color: white;
-    box-shadow: 0 2px 12px rgba(88, 166, 255, 0.3);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-accent:hover {
-    box-shadow: 0 4px 20px rgba(88, 166, 255, 0.5);
+    box-shadow: var(--shadow-md);
+    filter: brightness(1.05);
     transform: translateY(-1px);
 }
 
