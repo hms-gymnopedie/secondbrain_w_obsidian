@@ -45,6 +45,7 @@ class UploadResponse(BaseModel):
 
 class URLRequest(BaseModel):
     url: str
+    folder: Optional[str] = None
 
 
 class ProcessingStatus(BaseModel):
@@ -76,6 +77,7 @@ class HistoryItem(BaseModel):
     keywords: List[str] = []
     summary: str = ""
     vault_path: str = ""
+    folder: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
     error_message: str = ""
 

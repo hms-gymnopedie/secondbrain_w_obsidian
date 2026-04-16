@@ -68,7 +68,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @router.post("/upload", response_model=List[UploadResponse])
-async def upload_files(files: List[UploadFile] = File(...)):
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    folder: Optional[str] = Form(None)
+):
     """Upload one or more files for processing."""
     responses = []
 
@@ -126,7 +129,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
         # Process the file asynchronously
         import asyncio
         asyncio.create_task(
-            _process_file(file_id, str(file_path), file.filename or "", source_type)
+            _process_file(file_id, str(file_path), file.filename or "", source_type, folder)
         )
 
     return responses
@@ -147,7 +150,7 @@ async def process_url(request: URLRequest):
 
     # Process URL asynchronously
     import asyncio
-    asyncio.create_task(_process_url(file_id, request.url))
+    asyncio.create_task(_process_url(file_id, request.url, request.folder))
 
     return response
 
@@ -190,6 +193,7 @@ async def delete_note(note_id: str):
                 vault_path=item.vault_path,
                 note_title=item.title,
                 keywords=item.keywords,
+                folder=item.folder,
             )
         except Exception as e:
             print(f"❌ 삭제 오류: {e}")
@@ -220,6 +224,7 @@ async def _process_file(
     file_path: str,
     original_filename: str,
     source_type: SourceType,
+    folder: Optional[str] = None,
 ):
     """Process an uploaded file through the full pipeline."""
     history_item = HistoryItem(
@@ -228,6 +233,7 @@ async def _process_file(
         title="처리 중...",
         source_type=source_type,
         status=ProcessingStage.EXTRACTING,
+        folder=folder or "",
     )
     processing_history.append(history_item)
 
@@ -294,6 +300,7 @@ async def _process_file(
                 analysis=analysis,
                 source_type=source_type,
                 source_name=original_filename,
+                folder=folder,
             )
 
             total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
@@ -345,6 +352,7 @@ async def _process_file(
                 summary_result=summary,
                 source_type=source_type,
                 source_name=original_filename,
+                folder=folder,
             )
 
             # Done
@@ -386,7 +394,7 @@ async def _process_file(
             pass
 
 
-async def _process_url(file_id: str, url: str):
+async def _process_url(file_id: str, url: str, folder: Optional[str] = None):
     """Process a URL through the full pipeline."""
     history_item = HistoryItem(
         id=file_id,
@@ -394,6 +402,7 @@ async def _process_url(file_id: str, url: str):
         title="처리 중...",
         source_type=SourceType.WEB,
         status=ProcessingStage.EXTRACTING,
+        folder=folder or "",
     )
     processing_history.append(history_item)
 
@@ -460,6 +469,7 @@ async def _process_url(file_id: str, url: str):
                 source_type=SourceType.WEB,
                 source_name=extraction.title or url,
                 source_url=url,
+                folder=folder,
             )
 
             total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
@@ -511,6 +521,7 @@ async def _process_url(file_id: str, url: str):
                 source_type=SourceType.WEB,
                 source_name=extraction.title or url,
                 source_url=url,
+                folder=folder,
             )
 
             history_item.title = summary.title

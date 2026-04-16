@@ -71,6 +71,11 @@
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
 
+        const categoryInput = document.getElementById('category-input');
+        if (categoryInput && categoryInput.value.trim() !== '') {
+            formData.append('folder', categoryInput.value.trim());
+        }
+
         dashboard.showToast(`📤 ${files.length}개 파일 업로드 중...`, 'info');
 
         try {
@@ -123,6 +128,9 @@
             return;
         }
 
+        const categoryInput = document.getElementById('category-input');
+        const folder = categoryInput && categoryInput.value.trim() !== '' ? categoryInput.value.trim() : null;
+
         urlInput.value = '';
         urlBtn.disabled = true;
         urlBtn.textContent = '처리 중...';
@@ -131,7 +139,7 @@
             const response = await fetch(`${API_BASE}/api/url`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url }),
+                body: JSON.stringify({ url, folder }),
             });
 
             if (!response.ok) {

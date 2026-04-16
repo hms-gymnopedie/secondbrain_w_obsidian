@@ -131,9 +131,11 @@ async def write_note(
     source_name: str,
     source_url: str = "",
     vault_path: Optional[str] = None,
+    folder: Optional[str] = None,
 ) -> str:
     """Write a note to the Obsidian vault. Returns the vault-relative path."""
-    vault = Path(vault_path or settings.vault_path).resolve()
+    vault_root = Path(vault_path or settings.vault_path).resolve()
+    vault = vault_root / sanitize_filename(folder) if folder else vault_root
 
     # Ensure vault is initialized
     init_vault(str(vault))
@@ -173,7 +175,7 @@ async def write_note(
     for related in related_notes:
         _add_backlink(related, summary_result.title, str(vault))
 
-    return str(note_path.relative_to(vault))
+    return str(note_path.relative_to(vault_root))
 
 
 def _safe_write(directory: Path, title: str, content: str) -> Path:
@@ -195,6 +197,7 @@ async def write_deep_notes(
     source_name: str,
     source_url: str = "",
     vault_path: Optional[str] = None,
+    folder: Optional[str] = None,
 ) -> str:
     """Write a hierarchical set of notes from deep analysis.
 
@@ -207,7 +210,8 @@ async def write_deep_notes(
 
     Returns the vault-relative path of the parent note.
     """
-    vault = Path(vault_path or settings.vault_path).resolve()
+    vault_root = Path(vault_path or settings.vault_path).resolve()
+    vault = vault_root / sanitize_filename(folder) if folder else vault_root
     init_vault(str(vault))
 
     # Ensure concept directory exists
@@ -258,7 +262,7 @@ async def write_deep_notes(
         if related != parent_title:
             _add_backlink(related, parent_title, str(vault))
 
-    return str(parent_path.relative_to(vault))
+    return str(parent_path.relative_to(vault_root))
 
 
 def _generate_parent_note(
@@ -445,6 +449,7 @@ def delete_note_from_vault(
     vault_path: str,
     note_title: str,
     keywords: list[str] = None,
+    folder: Optional[str] = None,
 ) -> None:
     """Delete a note from the vault and clean up all references.
 
@@ -456,8 +461,13 @@ def delete_note_from_vault(
     import re
     import shutil
 
-    vault = Path(settings.vault_path).resolve()
-    note_file = vault / vault_path
+    vault_root = Path(settings.vault_path).resolve()
+    # The note_file is provided as a vault-relative path from the absolute root
+    note_file = vault_root / vault_path
+    
+    # But for scoping subdirectory deletions (section_dir) and MOC cleanups, we 
+    # scope our search `vault` to the folder if provided.
+    vault = vault_root / sanitize_filename(folder) if folder else vault_root
 
     print(f"🗑️ 삭제 시작: {note_file}")
     print(f"   Vault: {vault}")
@@ -517,7 +527,7 @@ def delete_note_from_vault(
                     if not remaining_links:
                         print(f"   🗑️ 빈 MOC 삭제: {md_file.name}")
                         md_file.unlink()
-                        _remove_from_moc_index(md_file.stem)
+                        _remove_from_moc_index(md_file.stem, folder)
                 
                 # Clean up empty Atomic Concepts
                 elif "03_Concepts" in file_str:
@@ -533,9 +543,11 @@ def delete_note_from_vault(
             continue
 
 
-def _remove_from_moc_index(keyword: str) -> None:
+def _remove_from_moc_index(keyword: str, folder: Optional[str] = None) -> None:
     """Remove a keyword entry from the MOC index."""
     vault = Path(settings.vault_path).resolve()
+    if folder:
+        vault = vault / folder
     index_path = vault / "02_MOC" / "_Index.md"
 
     if not index_path.exists():
