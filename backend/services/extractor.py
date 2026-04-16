@@ -90,9 +90,16 @@ async def extract_from_url(url: str) -> ExtractionResult:
 
         # Get full extraction with metadata
         result = bare_extraction(downloaded, include_comments=False)
+        
+        # trafilatura >= 1.8 returns a Document object instead of dict
+        if result and hasattr(result, 'as_dict'):
+            result = result.as_dict()
 
-        text = result.get("text", "") if result else ""
-        title = result.get("title", url) if result else url
+        text = result.get("text") if result else None
+        title = result.get("title") if result else None
+        
+        text = text or ""
+        title = title or url
         
         # Simple extract fallback if bare_extraction returned empty text
         if not text.strip():
@@ -109,10 +116,10 @@ async def extract_from_url(url: str) -> ExtractionResult:
 
         metadata = {
             "url": url,
-            "author": result.get("author", "") if result else "",
-            "date": result.get("date", "") if result else "",
-            "sitename": result.get("sitename", "") if result else "",
-            "description": result.get("description", "") if result else "",
+            "author": (result.get("author") if result else None) or "",
+            "date": (result.get("date") if result else None) or "",
+            "sitename": (result.get("sitename") if result else None) or "",
+            "description": (result.get("description") if result else None) or "",
         }
 
         return ExtractionResult(text=text, title=title, metadata=metadata)
