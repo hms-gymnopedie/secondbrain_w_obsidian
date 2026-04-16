@@ -546,7 +546,14 @@ def _remove_from_moc_index(keyword: str) -> None:
         link = f"- [[{keyword}]]"
         content = content.replace(f"{link}\n", "")
         content = content.replace(link, "")
-        index_path.write_text(content, encoding="utf-8")
+        
+        # Check if there are any remaining links
+        remaining_links = re.findall(r"\[\[.+?\]\]", content)
+        if not remaining_links:
+            print(f"   🗑️ 빈 MOC 인덱스 파일 삭제: {index_path.name}")
+            index_path.unlink()
+        else:
+            index_path.write_text(content, encoding="utf-8")
     except Exception:
         pass
 
