@@ -232,32 +232,57 @@
         if (!dropdown) return;
         
         dropdown.innerHTML = '';
+        
         if (folders.length === 0) {
             const emptyEl = document.createElement('div');
             emptyEl.className = 'folder-dropdown-item';
-            emptyEl.textContent = '기존 폴더가 없습니다';
+            emptyEl.textContent = '일치하는 기존 폴더가 없습니다';
             emptyEl.style.color = 'var(--text-tertiary)';
+            emptyEl.style.pointerEvents = 'none';
             dropdown.appendChild(emptyEl);
-            return;
+        } else {
+            folders.forEach(folder => {
+                const el = document.createElement('div');
+                el.className = 'folder-dropdown-item';
+                el.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                    <span>${folder}</span>
+                `;
+                el.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // Prevent blur
+                    const input = document.getElementById('category-input');
+                    if (input) {
+                        input.value = folder;
+                        dropdown.classList.add('hidden');
+                    }
+                });
+                dropdown.appendChild(el);
+            });
         }
 
-        folders.forEach(folder => {
-            const el = document.createElement('div');
-            el.className = 'folder-dropdown-item';
-            el.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                <span>${folder}</span>
-            `;
-            el.addEventListener('mousedown', (e) => {
-                e.preventDefault(); // Prevent blur
+        // Add "Create new folder" button at the bottom
+        const createEl = document.createElement('div');
+        createEl.className = 'folder-dropdown-item';
+        createEl.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span style="font-weight: 500;">폴더 새로 만들기</span>
+        `;
+        createEl.style.borderTop = '1px solid var(--border-primary)';
+        createEl.style.color = 'var(--text-accent)';
+        createEl.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent blur
+            dropdown.classList.add('hidden');
+            const newFolder = prompt("새로 만들 폴더 이름을 입력하세요:");
+            if (newFolder && newFolder.trim() !== '') {
                 const input = document.getElementById('category-input');
                 if (input) {
-                    input.value = folder;
-                    dropdown.classList.add('hidden');
+                    input.value = newFolder.trim();
                 }
-            });
-            dropdown.appendChild(el);
+            } else {
+                 document.getElementById('category-input').focus();
+            }
         });
+        dropdown.appendChild(createEl);
     }
 
     // Attach event listeners for the folder dropdown
