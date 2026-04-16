@@ -213,6 +213,29 @@
         }
     }
 
+    async function fetchStats() {
+        try {
+            const response = await fetch(`${API_BASE}/api/stats`);
+            if (response.ok) {
+                const stats = await response.json();
+                
+                const updateStat = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = value;
+                };
+
+                updateStat('stat-notes', stats.notes || 0);
+                updateStat('stat-folders', stats.folders || 0);
+                updateStat('stat-tags', stats.tags || 0);
+                updateStat('stat-assets', stats.assets || 0);
+                updateStat('stat-storage', stats.storage || '0.0 MB');
+                updateStat('stat-today', stats.today || 0);
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats:', e);
+        }
+    }
+
     let availableFolders = [];
 
     async function fetchFolders() {
@@ -376,6 +399,7 @@
     const refreshBtn = document.getElementById('btn-refresh');
     refreshBtn.addEventListener('click', () => {
         fetchHistory();
+        fetchStats();
         dashboard.showToast('새로고침 완료', 'info');
     });
 
@@ -406,5 +430,6 @@
     connectWebSocket();
     fetchHistory();
     fetchFolders();
+    fetchStats();
 
 })();

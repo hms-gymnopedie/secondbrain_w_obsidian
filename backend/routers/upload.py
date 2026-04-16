@@ -174,6 +174,79 @@ async def get_folders():
     return sorted(folders)
 
 
+@router.get("/stats")
+async def get_stats():
+    """Get real-time statistics from the Obsidian vault."""
+    import time
+    import re
+    
+    vault_root = Path(settings.vault_path).resolve()
+    
+    stats = {
+        "notes": 0,
+        "folders": 0,
+        "tags": 0,
+        "assets": 0,
+        "storage": "0.0 MB",
+        "today": 0
+    }
+    
+    if not vault_root.exists():
+        return stats
+        
+    now = time.time()
+    one_day = 24 * 60 * 60
+    unique_tags = set()
+    total_size = 0
+    
+    # Pattern designed to match Obsidian tags covering alphanumeric and Korean characters
+    tag_pattern = re.compile(r'(?<!#)\B#([a-zA-Z0-9_\-\u3131-\u318E\uAC00-\uD7A3]+)\b')
+    
+    for path in vault_root.rglob("*"):
+        if ".obsidian" in path.parts:
+            continue
+            
+        if path.is_file():
+            try:
+                stat = path.stat()
+                total_size += stat.st_size
+                
+                if path.suffix == ".md":
+                    stats["notes"] += 1
+                    
+                    # Check if modified today
+                    if now - stat.st_mtime <= one_day:
+                        stats["today"] += 1
+                        
+                    # Extract tags
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            text = f.read()
+                            tags = tag_pattern.findall(text)
+                            unique_tags.update(tags)
+                    except Exception:
+                        pass
+                else:
+                    if not path.name.startswith("."):
+                        stats["assets"] += 1
+            except Exception:
+                pass
+                    
+        elif path.is_dir():
+            if not path.name.startswith("."):
+                stats["folders"] += 1
+
+    stats["tags"] = len(unique_tags)
+    
+    # calculate smart size string
+    if total_size < 1024 * 1024:
+        stats["storage"] = f"{total_size / 1024:.1f} KB"
+    else:
+        stats["storage"] = f"{total_size / (1024 * 1024):.1f} MB"
+    
+    return stats
+
+
 @router.get("/history", response_model=List[HistoryItem])
 async def get_history():
     """Get processing history."""
