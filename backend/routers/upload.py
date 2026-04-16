@@ -183,6 +183,7 @@ async def delete_note(note_id: str):
         raise HTTPException(status_code=404, detail="노트를 찾을 수 없습니다.")
 
     # Delete from vault (file + backlinks + MOC)
+    print(f"🗑️ DELETE 요청: id={note_id}, title={item.title}, vault_path={item.vault_path}, status={item.status}")
     if item.vault_path and item.status == ProcessingStage.DONE:
         try:
             delete_note_from_vault(
@@ -191,7 +192,10 @@ async def delete_note(note_id: str):
                 keywords=item.keywords,
             )
         except Exception as e:
+            print(f"❌ 삭제 오류: {e}")
             raise HTTPException(status_code=500, detail=f"노트 삭제 실패: {str(e)}")
+    else:
+        print(f"⚠️ 삭제 건너뜀: vault_path={item.vault_path}, status={item.status}")
 
     # Remove from history
     processing_history.remove(item)

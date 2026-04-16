@@ -449,17 +449,32 @@ def delete_note_from_vault(
     """Delete a note from the vault and clean up all references.
 
     1. Delete the note file itself
-    2. Remove backlinks from other notes that reference this note
-    3. Remove entries from MOC files
+    2. Delete section subdirectory if it exists (deep analysis)
+    3. Remove backlinks from other notes that reference this note
+    4. Remove entries from MOC files
     """
     import re
+    import shutil
 
     vault = Path(settings.vault_path).resolve()
     note_file = vault / vault_path
 
+    print(f"🗑️ 삭제 시작: {note_file}")
+    print(f"   Vault: {vault}")
+    print(f"   파일 존재: {note_file.exists()}")
+
     # 1. Delete the note file
     if note_file.exists():
         note_file.unlink()
+        print(f"   ✅ 파일 삭제 완료")
+    else:
+        print(f"   ⚠️ 파일을 찾을 수 없음")
+
+    # 2. Delete section subdirectory (for deep analysis notes)
+    section_dir = vault / "01_Sources" / sanitize_filename(note_title)
+    if section_dir.exists() and section_dir.is_dir():
+        shutil.rmtree(section_dir)
+        print(f"   ✅ 섹션 폴더 삭제: {section_dir}")
 
     # 2. Remove backlinks from all other notes
     link_pattern = f"[[{note_title}]]"

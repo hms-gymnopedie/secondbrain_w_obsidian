@@ -31,17 +31,28 @@ class DropzoneHandler {
         // File input change
         this.fileInput.addEventListener('change', (e) => this._onFileInputChange(e));
 
-        // Browse button
+        // Browse button - explicitly trigger file dialog
         const browseBtn = document.getElementById('btn-browse');
         if (browseBtn) {
-            browseBtn.addEventListener('click', () => this.fileInput.click());
-        }
-
-        // Prevent default drag behavior on the document
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            document.body.addEventListener(eventName, (e) => {
+            browseBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                this.fileInput.click();
+            });
+        }
+
+        // Also allow clicking the dropzone area to select files
+        this.dropzone.addEventListener('click', (e) => {
+            // Only trigger if not clicking a button
+            if (e.target.closest('button')) return;
+            this.fileInput.click();
+        });
+
+        // Prevent default drag behavior on the document (drag only, not click)
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.body.addEventListener(eventName, (e) => {
+                if (e.target === this.fileInput) return; // Don't block file input
+                e.preventDefault();
             });
         });
     }
