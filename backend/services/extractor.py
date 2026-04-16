@@ -65,7 +65,17 @@ async def extract_from_url(url: str) -> ExtractionResult:
         try:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=10) as response:
-                downloaded = response.read().decode('utf-8', errors='ignore')
+                raw_data = response.read()
+                # Auto-detect encoding based on headers or fallback gracefully
+                charset = response.headers.get_content_charset()
+                if charset:
+                    downloaded = raw_data.decode(charset, errors='replace')
+                else:
+                    # Fallback chain for Korean websites
+                    try:
+                        downloaded = raw_data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        downloaded = raw_data.decode('cp949', errors='ignore')
         except Exception as e:
             print(f"urllib Request failed for {url}: {e}")
             # Fallback to pure trafilatura fetch
