@@ -476,7 +476,7 @@ def delete_note_from_vault(
         shutil.rmtree(section_dir)
         print(f"   ✅ 섹션 폴더 삭제: {section_dir}")
 
-    # 2. Remove backlinks from all other notes
+    # 3. Remove backlinks from all other notes and cleanup orphans
     link_pattern = f"[[{note_title}]]"
     line_patterns = [
         f"- [[{note_title}]]",
@@ -507,35 +507,30 @@ def delete_note_from_vault(
 
             if content != original:
                 md_file.write_text(content, encoding="utf-8")
-        except Exception:
+                
+                # Check for orphaned files
+                file_str = str(md_file)
+                
+                # Clean up empty MOCs
+                if "02_MOC" in file_str and md_file.name != "_Index.md":
+                    remaining_links = re.findall(r"\[\[.+?\]\]", content)
+                    if not remaining_links:
+                        print(f"   🗑️ 빈 MOC 삭제: {md_file.name}")
+                        md_file.unlink()
+                        _remove_from_moc_index(md_file.stem)
+                
+                # Clean up empty Atomic Concepts
+                elif "03_Concepts" in file_str:
+                    sources_match = re.search(r"## 출처 문서\n(.*?)(?:\n##|\Z)", content, re.DOTALL)
+                    if sources_match:
+                        source_links = re.findall(r"\[\[.+?\]\]", sources_match.group(1))
+                        if not source_links:
+                            print(f"   🗑️ 고아 원자 개념 삭제: {md_file.name}")
+                            md_file.unlink()
+                            
+        except Exception as e:
+            print(f"   ⚠️ 의존성 정리 중 오류 ({md_file.name}): {e}")
             continue
-
-    # 3. Remove entries from MOC files
-    if keywords:
-        moc_dir = vault / "02_MOC"
-        if moc_dir.exists():
-            for keyword in keywords:
-                moc_file = moc_dir / f"{sanitize_filename(keyword)}.md"
-                if moc_file.exists():
-                    try:
-                        content = moc_file.read_text(encoding="utf-8")
-                        original = content
-                        for pattern in line_patterns:
-                            content = content.replace(f"{pattern}\n", "")
-                            content = content.replace(pattern, "")
-
-                        if content != original:
-                            # Check if MOC has no more note links
-                            remaining_links = re.findall(r"\[\[.+?\]\]", content)
-                            if not remaining_links:
-                                # Delete empty MOC
-                                moc_file.unlink()
-                                # Remove from index
-                                _remove_from_moc_index(keyword)
-                            else:
-                                moc_file.write_text(content, encoding="utf-8")
-                    except Exception:
-                        continue
 
 
 def _remove_from_moc_index(keyword: str) -> None:
