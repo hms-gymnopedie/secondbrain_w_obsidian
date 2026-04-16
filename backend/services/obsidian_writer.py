@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Optional
 
 from backend.config import settings
-from backend.models.schemas import SummaryResult, SourceType
+from backend.models.schemas import (
+    SummaryResult, SourceType, DeepAnalysisResult,
+    SectionResult, AtomicConcept,
+)
 from backend.services.metadata import (
     generate_note_content,
     sanitize_filename,
@@ -171,6 +174,239 @@ async def write_note(
         _add_backlink(related, summary_result.title, str(vault))
 
     return str(note_path.relative_to(vault))
+
+
+def _safe_write(directory: Path, title: str, content: str) -> Path:
+    """Write a note file, avoiding overwrites with number suffixes."""
+    filename = sanitize_filename(title) + ".md"
+    note_path = directory / filename
+    counter = 1
+    while note_path.exists():
+        filename = f"{sanitize_filename(title)} ({counter}).md"
+        note_path = directory / filename
+        counter += 1
+    note_path.write_text(content, encoding="utf-8")
+    return note_path
+
+
+async def write_deep_notes(
+    analysis: DeepAnalysisResult,
+    source_type: SourceType,
+    source_name: str,
+    source_url: str = "",
+    vault_path: Optional[str] = None,
+) -> str:
+    """Write a hierarchical set of notes from deep analysis.
+
+    Creates:
+    1. Parent note (overview) in 01_Sources/
+    2. Section notes in 01_Sources/{parent_title}/
+    3. Atomic concept notes in 03_Concepts/
+    4. MOC entries for keywords
+    5. Cross-links between all notes
+
+    Returns the vault-relative path of the parent note.
+    """
+    vault = Path(vault_path or settings.vault_path).resolve()
+    init_vault(str(vault))
+
+    # Ensure concept directory exists
+    concepts_dir = vault / "03_Concepts"
+    concepts_dir.mkdir(parents=True, exist_ok=True)
+
+    parent_title = analysis.title
+    section_titles = []
+    concept_titles = []
+
+    # --- 1. Write section notes ---
+    section_dir = vault / "01_Sources" / sanitize_filename(parent_title)
+    section_dir.mkdir(parents=True, exist_ok=True)
+
+    for section in analysis.sections:
+        section_content = _generate_section_note(
+            section, parent_title, source_name, source_url
+        )
+        section_path = _safe_write(section_dir, section.title, section_content)
+        section_titles.append(section.title)
+
+    # --- 2. Write atomic concept notes ---
+    for concept in analysis.atomic_concepts:
+        # Only create if doesn't already exist
+        existing = list(concepts_dir.glob(f"{sanitize_filename(concept.name)}*.md"))
+        if existing:
+            # Add backlink to existing concept note
+            _add_backlink(concept.name, parent_title, str(vault))
+        else:
+            concept_content = _generate_concept_note(concept, parent_title)
+            _safe_write(concepts_dir, concept.name, concept_content)
+        concept_titles.append(concept.name)
+
+    # --- 3. Write parent note ---
+    parent_content = _generate_parent_note(
+        analysis, source_type, source_name, source_url,
+        section_titles, concept_titles
+    )
+    parent_path = _safe_write(vault / "01_Sources", parent_title, parent_content)
+
+    # --- 4. Update MOCs ---
+    for keyword in analysis.keywords[:7]:
+        update_moc(keyword, parent_title, str(vault))
+
+    # --- 5. Cross-link with existing related notes ---
+    related_notes = find_related_notes(analysis.keywords, str(vault))
+    for related in related_notes:
+        if related != parent_title:
+            _add_backlink(related, parent_title, str(vault))
+
+    return str(parent_path.relative_to(vault))
+
+
+def _generate_parent_note(
+    analysis: DeepAnalysisResult,
+    source_type: SourceType,
+    source_name: str,
+    source_url: str,
+    section_titles: list[str],
+    concept_titles: list[str],
+) -> str:
+    """Generate the parent overview note content."""
+    now_str = datetime.now().strftime("%Y-%m-%d")
+    keywords_yaml = ", ".join(analysis.keywords) if analysis.keywords else ""
+    related_yaml = "\n".join(
+        f'  - "[[{t}]]"' for t in analysis.related_topics
+    )
+
+    sections_links = "\n".join(
+        f"  - [[{t}]]" for t in section_titles
+    )
+    concept_links = "\n".join(
+        f"  - [[{t}]]" for t in concept_titles
+    )
+
+    content = f"""---
+title: "{analysis.title}"
+type: {analysis.note_type.value}
+document_type: {analysis.document_type}
+tags: [{keywords_yaml}]
+source: "{source_name}"
+source_type: {source_type.value}
+created: {now_str}
+status: processed
+analysis: deep
+related:
+{related_yaml}
+---
+
+# {analysis.title}
+
+> [!summary]
+> {analysis.overall_summary}
+
+## 📑 문서 구조
+
+이 문서는 **{len(section_titles)}개 섹션**과 **{len(concept_titles)}개 핵심 개념**으로 분해되었습니다.
+
+### 섹션
+{sections_links}
+
+### 핵심 개념
+{concept_links}
+
+## 키워드
+{' '.join('#' + kw for kw in analysis.keywords)}
+
+## 원본 정보
+- 소스: {source_name}"""
+
+    if source_url:
+        content += f"\n- URL: [{source_url}]({source_url})"
+
+    content += f"\n- 유형: {analysis.document_type}"
+    content += f"\n- 처리일: {now_str}"
+    content += f"\n- 분석 방식: 심층 분해 (Deep Analysis)"
+
+    return content
+
+
+def _generate_section_note(
+    section: SectionResult,
+    parent_title: str,
+    source_name: str,
+    source_url: str,
+) -> str:
+    """Generate a section note content."""
+    now_str = datetime.now().strftime("%Y-%m-%d")
+
+    key_points_md = "\n".join(f"- {p}" for p in section.key_points) if section.key_points else "- (없음)"
+    claims_md = "\n".join(f"- {c}" for c in section.claims) if section.claims else ""
+
+    importance_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(section.importance, "⚪")
+
+    content = f"""---
+title: "{section.title}"
+type: section
+section_type: {section.section_type.value}
+parent: "[[{parent_title}]]"
+importance: {section.importance}
+evidence_type: {section.evidence_type or 'none'}
+position: {section.position}
+created: {now_str}
+---
+
+# {section.title}
+
+> [!info] 상위 문서: [[{parent_title}]] | 유형: `{section.section_type.value}` | 중요도: {importance_emoji} {section.importance}
+
+## 요약
+{section.summary}
+
+## 핵심 포인트
+{key_points_md}"""
+
+    if claims_md:
+        content += f"\n\n## 주요 주장\n{claims_md}"
+
+    if section.evidence_type and section.evidence_type != "none":
+        content += f"\n\n## 근거 유형\n`{section.evidence_type}` - 이 섹션의 논거는 {section.evidence_type} 기반입니다."
+
+    content += f"\n\n---\n*출처: {source_name}*"
+
+    return content
+
+
+def _generate_concept_note(
+    concept: AtomicConcept,
+    parent_title: str,
+) -> str:
+    """Generate an atomic concept note."""
+    now_str = datetime.now().strftime("%Y-%m-%d")
+    related = "\n".join(f"- [[{t}]]" for t in concept.related_topics) if concept.related_topics else "- (없음)"
+
+    importance_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(concept.importance, "⚪")
+
+    return f"""---
+title: "{concept.name}"
+type: concept
+importance: {concept.importance}
+sources:
+  - "[[{parent_title}]]"
+created: {now_str}
+---
+
+# {concept.name}
+
+> [!abstract] 중요도: {importance_emoji} {concept.importance}
+
+## 정의
+{concept.definition}
+
+## 관련 주제
+{related}
+
+## 출처 문서
+- [[{parent_title}]]
+"""
+
 
 
 def _add_backlink(

@@ -22,8 +22,8 @@ from backend.models.schemas import (
     SourceType,
 )
 from backend.services.extractor import detect_source_type, extract_content, extract_from_url
-from backend.services.summarizer import summarize_content
-from backend.services.obsidian_writer import write_note
+from backend.services.summarizer import summarize_content, analyze_document_deep, should_deep_analyze
+from backend.services.obsidian_writer import write_note, write_deep_notes
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -255,56 +255,110 @@ async def _process_file(
             )
             return
 
-        # Stage 2: Summarize with AI
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=original_filename,
-                stage=ProcessingStage.SUMMARIZING,
-                progress=50,
-                message="AI가 내용을 분석하고 있습니다...",
+        # Stage 2: Analyze with AI
+        use_deep = should_deep_analyze(extraction.text)
+
+        if use_deep:
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.SUMMARIZING,
+                    progress=40,
+                    message="🔬 AI가 문서를 심층 분해하고 있습니다...",
+                )
             )
-        )
 
-        summary = await summarize_content(
-            text=extraction.text,
-            title=extraction.title,
-            source=original_filename,
-        )
-
-        # Stage 3: Write to Obsidian vault
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=original_filename,
-                stage=ProcessingStage.WRITING,
-                progress=80,
-                message="Obsidian 노트를 생성하고 있습니다...",
+            analysis = await analyze_document_deep(
+                text=extraction.text,
+                title=extraction.title,
+                source=original_filename,
             )
-        )
 
-        vault_path = await write_note(
-            summary_result=summary,
-            source_type=source_type,
-            source_name=original_filename,
-        )
-
-        # Done
-        history_item.title = summary.title
-        history_item.summary = summary.summary
-        history_item.keywords = summary.keywords
-        history_item.vault_path = vault_path
-        history_item.status = ProcessingStage.DONE
-
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=original_filename,
-                stage=ProcessingStage.DONE,
-                progress=100,
-                message=f"완료! 노트가 생성되었습니다: {vault_path}",
+            # Stage 3: Write hierarchical notes
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.WRITING,
+                    progress=75,
+                    message=f"📝 {len(analysis.sections)}개 섹션 + {len(analysis.atomic_concepts)}개 개념 노트 생성 중...",
+                )
             )
-        )
+
+            vault_path = await write_deep_notes(
+                analysis=analysis,
+                source_type=source_type,
+                source_name=original_filename,
+            )
+
+            total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
+            history_item.title = analysis.title
+            history_item.summary = analysis.overall_summary
+            history_item.keywords = analysis.keywords
+            history_item.vault_path = vault_path
+            history_item.status = ProcessingStage.DONE
+
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.DONE,
+                    progress=100,
+                    message=f"✅ 심층 분석 완료! 총 {total_notes}개 노트 생성: {vault_path}",
+                )
+            )
+
+        else:
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.SUMMARIZING,
+                    progress=50,
+                    message="AI가 내용을 분석하고 있습니다...",
+                )
+            )
+
+            summary = await summarize_content(
+                text=extraction.text,
+                title=extraction.title,
+                source=original_filename,
+            )
+
+            # Stage 3: Write to Obsidian vault
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.WRITING,
+                    progress=80,
+                    message="Obsidian 노트를 생성하고 있습니다...",
+                )
+            )
+
+            vault_path = await write_note(
+                summary_result=summary,
+                source_type=source_type,
+                source_name=original_filename,
+            )
+
+            # Done
+            history_item.title = summary.title
+            history_item.summary = summary.summary
+            history_item.keywords = summary.keywords
+            history_item.vault_path = vault_path
+            history_item.status = ProcessingStage.DONE
+
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=original_filename,
+                    stage=ProcessingStage.DONE,
+                    progress=100,
+                    message=f"완료! 노트가 생성되었습니다: {vault_path}",
+                )
+            )
 
     except Exception as e:
         history_item.status = ProcessingStage.ERROR
@@ -367,57 +421,109 @@ async def _process_url(file_id: str, url: str):
             )
             return
 
-        # Stage 2: Summarize
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=url,
-                stage=ProcessingStage.SUMMARIZING,
-                progress=50,
-                message="AI가 내용을 분석하고 있습니다...",
+        # Stage 2: Analyze with AI
+        use_deep = should_deep_analyze(extraction.text)
+
+        if use_deep:
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.SUMMARIZING,
+                    progress=40,
+                    message="🔬 AI가 문서를 심층 분해하고 있습니다...",
+                )
             )
-        )
 
-        summary = await summarize_content(
-            text=extraction.text,
-            title=extraction.title,
-            source=url,
-        )
-
-        # Stage 3: Write to vault
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=url,
-                stage=ProcessingStage.WRITING,
-                progress=80,
-                message="Obsidian 노트를 생성하고 있습니다...",
+            analysis = await analyze_document_deep(
+                text=extraction.text,
+                title=extraction.title,
+                source=url,
             )
-        )
 
-        vault_path = await write_note(
-            summary_result=summary,
-            source_type=SourceType.WEB,
-            source_name=extraction.title or url,
-            source_url=url,
-        )
-
-        # Done
-        history_item.title = summary.title
-        history_item.summary = summary.summary
-        history_item.keywords = summary.keywords
-        history_item.vault_path = vault_path
-        history_item.status = ProcessingStage.DONE
-
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=url,
-                stage=ProcessingStage.DONE,
-                progress=100,
-                message=f"완료! 노트가 생성되었습니다: {vault_path}",
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.WRITING,
+                    progress=75,
+                    message=f"📝 {len(analysis.sections)}개 섹션 + {len(analysis.atomic_concepts)}개 개념 노트 생성 중...",
+                )
             )
-        )
+
+            vault_path = await write_deep_notes(
+                analysis=analysis,
+                source_type=SourceType.WEB,
+                source_name=extraction.title or url,
+                source_url=url,
+            )
+
+            total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
+            history_item.title = analysis.title
+            history_item.summary = analysis.overall_summary
+            history_item.keywords = analysis.keywords
+            history_item.vault_path = vault_path
+            history_item.status = ProcessingStage.DONE
+
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.DONE,
+                    progress=100,
+                    message=f"✅ 심층 분석 완료! 총 {total_notes}개 노트 생성: {vault_path}",
+                )
+            )
+
+        else:
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.SUMMARIZING,
+                    progress=50,
+                    message="AI가 내용을 분석하고 있습니다...",
+                )
+            )
+
+            summary = await summarize_content(
+                text=extraction.text,
+                title=extraction.title,
+                source=url,
+            )
+
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.WRITING,
+                    progress=80,
+                    message="Obsidian 노트를 생성하고 있습니다...",
+                )
+            )
+
+            vault_path = await write_note(
+                summary_result=summary,
+                source_type=SourceType.WEB,
+                source_name=extraction.title or url,
+                source_url=url,
+            )
+
+            history_item.title = summary.title
+            history_item.summary = summary.summary
+            history_item.keywords = summary.keywords
+            history_item.vault_path = vault_path
+            history_item.status = ProcessingStage.DONE
+
+            await broadcast_status(
+                ProcessingStatus(
+                    id=file_id,
+                    filename=url,
+                    stage=ProcessingStage.DONE,
+                    progress=100,
+                    message=f"완료! 노트가 생성되었습니다: {vault_path}",
+                )
+            )
 
     except Exception as e:
         history_item.status = ProcessingStage.ERROR

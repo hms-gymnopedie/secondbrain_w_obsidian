@@ -93,3 +93,48 @@ class SummaryResult(BaseModel):
     key_points: List[str]
     note_type: NoteType = NoteType.SOURCE
     related_topics: List[str] = []
+
+
+class SectionType(str, Enum):
+    BACKGROUND = "background"
+    INTRODUCTION = "introduction"
+    METHODOLOGY = "methodology"
+    RESULTS = "results"
+    DISCUSSION = "discussion"
+    CONCLUSION = "conclusion"
+    LITERATURE_REVIEW = "literature_review"
+    ANALYSIS = "analysis"
+    OTHER = "other"
+
+
+class SectionResult(BaseModel):
+    """A logical section extracted from a large document."""
+    section_type: SectionType = SectionType.OTHER
+    title: str
+    summary: str
+    key_points: List[str] = []
+    importance: str = "medium"  # high, medium, low
+    evidence_type: str = ""  # empirical, theoretical, statistical, etc.
+    claims: List[str] = []
+    position: int = 0  # order within the document
+
+
+class AtomicConcept(BaseModel):
+    """An atomic knowledge unit extracted from the document."""
+    name: str
+    definition: str
+    related_topics: List[str] = []
+    importance: str = "medium"
+
+
+class DeepAnalysisResult(BaseModel):
+    """Result of deep hierarchical document analysis."""
+    title: str
+    overall_summary: str
+    document_type: str = ""  # paper, report, article, etc.
+    keywords: List[str] = []
+    note_type: NoteType = NoteType.SOURCE
+    sections: List[SectionResult] = []
+    atomic_concepts: List[AtomicConcept] = []
+    related_topics: List[str] = []
+
