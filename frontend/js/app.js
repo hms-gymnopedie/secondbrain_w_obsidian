@@ -213,23 +213,84 @@
         }
     }
 
+    let availableFolders = [];
+
     async function fetchFolders() {
         try {
             const response = await fetch(`${API_BASE}/api/folders`);
             if (response.ok) {
-                const folders = await response.json();
-                const datalist = document.getElementById('category-list');
-                if (datalist) {
-                    datalist.innerHTML = '';
-                    folders.forEach(folder => {
-                        const option = document.createElement('option');
-                        option.value = folder;
-                        datalist.appendChild(option);
-                    });
-                }
+                availableFolders = await response.json();
+                renderFolderDropdown(availableFolders);
             }
         } catch (e) {
             console.error('Failed to fetch folders:', e);
+        }
+    }
+
+    function renderFolderDropdown(folders) {
+        const dropdown = document.getElementById('folder-dropdown');
+        if (!dropdown) return;
+        
+        dropdown.innerHTML = '';
+        if (folders.length === 0) {
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'folder-dropdown-item';
+            emptyEl.textContent = '기존 폴더가 없습니다';
+            emptyEl.style.color = 'var(--text-tertiary)';
+            dropdown.appendChild(emptyEl);
+            return;
+        }
+
+        folders.forEach(folder => {
+            const el = document.createElement('div');
+            el.className = 'folder-dropdown-item';
+            el.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                <span>${folder}</span>
+            `;
+            el.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // Prevent blur
+                const input = document.getElementById('category-input');
+                if (input) {
+                    input.value = folder;
+                    dropdown.classList.add('hidden');
+                }
+            });
+            dropdown.appendChild(el);
+        });
+    }
+
+    // Attach event listeners for the folder dropdown
+    const categoryInput = document.getElementById('category-input');
+    const folderDropdown = document.getElementById('folder-dropdown');
+    
+    if (categoryInput && folderDropdown) {
+        categoryInput.addEventListener('focus', () => {
+            renderFolderDropdown(availableFolders);
+            folderDropdown.classList.remove('hidden');
+        });
+
+        categoryInput.addEventListener('blur', () => {
+            folderDropdown.classList.add('hidden');
+        });
+
+        categoryInput.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            const filtered = availableFolders.filter(f => f.toLowerCase().includes(val));
+            renderFolderDropdown(filtered);
+            folderDropdown.classList.remove('hidden');
+        });
+        
+        const dropdownIcon = document.querySelector('.dropdown-icon');
+        if (dropdownIcon) {
+            dropdownIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (folderDropdown.classList.contains('hidden')) {
+                    categoryInput.focus();
+                } else {
+                    folderDropdown.classList.add('hidden');
+                }
+            });
         }
     }
 

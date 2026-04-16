@@ -82,14 +82,15 @@
             <!-- Drop Zone -->
             <section class="dropzone-section">
                 <!-- Category/Folder Input -->
-                <div class="category-input-section" style="margin-bottom: 20px;">
+                <div class="category-input-section" style="margin-bottom: 20px; position: relative;">
                     <div class="url-input-wrapper">
                         <svg class="url-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
                         </svg>
-                        <input type="text" id="category-input" list="category-list" placeholder="저장할 폴더명 (입력하지 않으면 기본 폴더에 저장)" class="url-input">
-                        <datalist id="category-list"></datalist>
+                        <input type="text" id="category-input" placeholder="저장할 폴더명 (입력하지 않으면 기본 폴더에 저장)" class="url-input" autocomplete="off">
+                        <svg class="dropdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
+                    <div id="folder-dropdown" class="folder-dropdown hidden"></div>
                 </div>
 
                 <div class="dropzone" id="dropzone">
@@ -169,7 +170,7 @@
     <div class="toast-container" id="toast-container"></div>
 
     <script src="js/dropzone.js?v=2"></script>
-    <script src="js/dashboard.js?v=6"></script>
-    <script src="js/app.js?v=6"></script>
+    <script src="js/dashboard.js?v=7"></script>
+    <script src="js/app.js?v=7"></script>
 </body>
 </html>
