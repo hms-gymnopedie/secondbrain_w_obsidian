@@ -100,6 +100,38 @@
     --shadow-glow: 0 0 20px rgba(10, 132, 255, 0.25);
 }
 
+[data-theme="paper"] {
+    /* Colors - Paper/E-Ink Theme for eye comfort */
+    --bg-primary: #F9F6F0;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F1EFE9;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg-glass: rgba(255, 255, 255, 0.9);
+    --bg-hover: rgba(139, 115, 85, 0.08);
+
+    --text-primary: #4A443E;
+    --text-secondary: #8C8276;
+    --text-tertiary: #B3A99D;
+    --text-accent: #D35400;
+
+    --border-primary: rgba(139, 115, 85, 0.15);
+    --border-glass: rgba(139, 115, 85, 0.1);
+
+    /* Muted warm accents */
+    --accent-blue: #4A90E2;
+    --accent-purple: #9B59B6;
+    --accent-green: #27AE60;
+    --accent-orange: #D35400;
+    --accent-red: #C0392B;
+    --accent-cyan: #16A085;
+    --accent-pink: #E84393;
+
+    --shadow-sm: 0 2px 8px rgba(139, 115, 85, 0.05);
+    --shadow-md: 0 4px 16px rgba(139, 115, 85, 0.08);
+    --shadow-lg: 0 8px 30px rgba(139, 115, 85, 0.12);
+    --shadow-glow: 0 0 20px rgba(211, 84, 0, 0.15);
+}
+
 /* ---------- Reset & Base ---------- */
 *, *::before, *::after {
     box-sizing: border-box;
