@@ -48,16 +48,34 @@ async def extract_content(file_path: str, source_type: SourceType) -> Extraction
 
 
 async def extract_from_url(url: str) -> ExtractionResult:
-    """Extract content from a web URL using trafilatura."""
+    """Extract content from a web URL using trafilatura with a custom User-Agent Header fallback."""
     try:
         from trafilatura import fetch_url, extract, bare_extraction
+        import urllib.request
+        from urllib.error import URLError, HTTPError
 
-        downloaded = fetch_url(url)
+        downloaded = None
+        # Use Standard Chrome User-Agent to evade basic scraper walls
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+        
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as response:
+                downloaded = response.read().decode('utf-8', errors='ignore')
+        except Exception as e:
+            print(f"urllib Request failed for {url}: {e}")
+            # Fallback to pure trafilatura fetch
+            downloaded = fetch_url(url)
+
         if not downloaded:
             return ExtractionResult(
                 text="",
                 title=url,
-                metadata={"error": "Failed to fetch URL", "url": url},
+                metadata={"error": "Failed to fetch URL. Blocked by server or Timeout.", "url": url},
             )
 
         # Get full extraction with metadata
@@ -65,6 +83,10 @@ async def extract_from_url(url: str) -> ExtractionResult:
 
         text = result.get("text", "") if result else ""
         title = result.get("title", url) if result else url
+        
+        # Simple extract fallback if bare_extraction returned empty text
+        if not text.strip():
+            text = extract(downloaded, include_comments=False) or ""
 
         metadata = {
             "url": url,
