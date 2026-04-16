@@ -24,6 +24,11 @@ class DashboardUI {
     // -------- Queue --------
 
     addQueueItem(id, filename, sourceType) {
+        if (this.queueItems.has(id)) {
+            // Already added by optimistic WS update
+            return;
+        }
+        
         this.queueSection.style.display = '';
 
         const icon = DropzoneHandler.getFileIcon(filename);
@@ -47,9 +52,17 @@ class DashboardUI {
         this.queueItems.set(id, el);
     }
 
-    updateQueueItem(id, stage, progress, message) {
-        const el = this.queueItems.get(id);
-        if (!el) return;
+    updateQueueItem(id, stage, progress, message, filename = null) {
+        let el = this.queueItems.get(id);
+        if (!el) {
+            if (filename) {
+                // If WS payload arrived before the POST fetch finishes, pre-populate the queue UI.
+                this.addQueueItem(id, filename, 'text');
+                el = this.queueItems.get(id);
+            } else {
+                return;
+            }
+        }
 
         const statusEl = el.querySelector('.queue-item-status');
         const progressEl = el.querySelector('.progress-fill');

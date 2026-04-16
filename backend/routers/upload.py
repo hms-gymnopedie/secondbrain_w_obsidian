@@ -73,6 +73,7 @@ async def upload_files(
     folder: Optional[str] = Form(None)
 ):
     """Upload one or more files for processing."""
+    print(f"📥 UPLOAD RECEIVED: folder={folder}, num_files={len(files)}")
     responses = []
 
     for file in files:
@@ -153,6 +154,24 @@ async def process_url(request: URLRequest):
     asyncio.create_task(_process_url(file_id, request.url, request.folder))
 
     return response
+
+
+@router.get("/folders", response_model=List[str])
+async def get_folders():
+    """Get list of user-created top-level category folders."""
+    vault_root = Path(settings.vault_path).resolve()
+    if not vault_root.exists():
+        return []
+
+    # Ignore system and default structural folders
+    ignored = {"00_Inbox", "01_Sources", "02_MOC", "03_Concepts", "templates"}
+    folders = []
+    
+    for d in vault_root.iterdir():
+        if d.is_dir() and not d.name.startswith('.') and d.name not in ignored:
+            folders.append(d.name)
+            
+    return sorted(folders)
 
 
 @router.get("/history", response_model=List[HistoryItem])

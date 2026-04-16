@@ -163,7 +163,13 @@
 
     // -------- Processing Updates --------
     function handleProcessingUpdate(status) {
-        dashboard.updateQueueItem(status.id, status.stage, status.progress, status.message);
+        dashboard.updateQueueItem(
+            status.id, 
+            status.stage, 
+            status.progress, 
+            status.message, 
+            status.filename
+        );
 
         if (status.stage === 'done') {
             dashboard.showToast(`✅ 노트 생성 완료!`, 'success');
@@ -204,6 +210,26 @@
             }
         } catch (e) {
             console.error('Failed to fetch history:', e);
+        }
+    }
+
+    async function fetchFolders() {
+        try {
+            const response = await fetch(`${API_BASE}/api/folders`);
+            if (response.ok) {
+                const folders = await response.json();
+                const datalist = document.getElementById('category-list');
+                if (datalist) {
+                    datalist.innerHTML = '';
+                    folders.forEach(folder => {
+                        const option = document.createElement('option');
+                        option.value = folder;
+                        datalist.appendChild(option);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch folders:', e);
         }
     }
 
@@ -261,5 +287,6 @@
     // -------- Initialize --------
     connectWebSocket();
     fetchHistory();
+    fetchFolders();
 
 })();
