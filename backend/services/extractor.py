@@ -98,6 +98,15 @@ async def extract_from_url(url: str) -> ExtractionResult:
         if not text.strip():
             text = extract(downloaded, include_comments=False) or ""
 
+        # DEBUG: If still no text, dump the HTML so the AI can debug it
+        if not text.strip() and downloaded:
+            try:
+                with open("failed_scrape.log", "a", encoding="utf-8") as f:
+                    f.write(f"\n\n--- FAILED URL: {url} ---\n")
+                    f.write(downloaded[:2000]) # only save first 2000 chars to see what it is
+            except Exception:
+                pass
+
         metadata = {
             "url": url,
             "author": result.get("author", "") if result else "",
