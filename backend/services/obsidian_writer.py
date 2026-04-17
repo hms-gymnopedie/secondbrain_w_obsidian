@@ -51,7 +51,7 @@ def init_vault(vault_path: Optional[str] = None) -> None:
         import json
         graph_config = {
             "collapse-filter": False,
-            "search": "",
+            "search": "-tag:#section",
             "showTags": True,
             "showAttachments": False,
             "hideUnresolved": False,
@@ -60,6 +60,8 @@ def init_vault(vault_path: Optional[str] = None) -> None:
             "colorGroups": [
                 {"query": "tag:#moc", "color": {"a": 1, "rgb": 65399}},
                 {"query": "tag:#source", "color": {"a": 1, "rgb": 4514943}},
+                {"query": "tag:#concept", "color": {"a": 1, "rgb": 14562446}},
+                {"query": "tag:#section", "color": {"a": 0.3, "rgb": 8947848}},
             ],
             "collapse-display": False,
             "showArrow": True,
@@ -353,6 +355,7 @@ def _generate_section_note(
     content = f"""---
 title: "{section.title}"
 type: section
+tags: [section]
 section_type: {section.section_type.value}
 parent: "[[{parent_title}]]"
 importance: {section.importance}
@@ -395,6 +398,7 @@ def _generate_concept_note(
     return f"""---
 title: "{concept.name}"
 type: concept
+tags: [concept]
 importance: {concept.importance}
 sources:
   - "[[{parent_title}]]"
