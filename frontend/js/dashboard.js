@@ -135,31 +135,48 @@ class DashboardUI {
                     <button class="btn btn-primary btn-sm btn-merge" style="padding: 4px 10px; font-size: 11px;">병합 실행</button>
                 </div>
                 <div class="tag-synonyms" style="margin-top: 8px;">
-                    <span class="synonym-tag" style="background: rgba(0,122,255,0.1); color: var(--accent-blue); border-color: rgba(0,122,255,0.2); text-decoration: none;">기존 대표: #${group.primary_tag}</span>
-                    ${group.synonyms.map(s => `<span class="synonym-tag">#${s}</span>`).join('')}
+                    <span class="synonym-tag" style="background: rgba(0,122,255,0.1); color: var(--accent-blue); border-color: rgba(0,122,255,0.2); cursor: default; pointer-events: none;">기존 대표: #${group.primary_tag}</span>
+                    ${group.synonyms.map(s => `<span class="synonym-tag merge-target" data-tag="${s}" title="클릭하여 병합 대상에서 제외/포함 토글">#${s}</span>`).join('')}
                 </div>
-                <div class="tag-reason">${group.reason}</div>
+                <div class="tag-reason" style="margin-top: 4px;">${group.reason}</div>
             `;
 
             const mergeBtn = el.querySelector('.btn-merge');
             const inputEl = el.querySelector('.primary-tag-input');
+            const targetTags = el.querySelectorAll('.merge-target');
+
+            // 토글 이벤트 리스너 추가
+            targetTags.forEach(tagEl => {
+                tagEl.addEventListener('click', () => {
+                    tagEl.classList.toggle('excluded');
+                });
+            });
             
             mergeBtn.addEventListener('click', async () => {
-                const finalTag = inputEl.value.trim().replace(/^#/, ''); // 맨 앞의 # 제거 (사용자가 실수로 입력한 경우 대비)
+                const finalTag = inputEl.value.trim().replace(/^#/, ''); // 맨 앞의 # 제거
                 if (!finalTag) {
                     this.showToast('대표 태그 이름을 입력해주세요.', 'error');
                     inputEl.focus();
                     return;
                 }
 
+                // 제외된(.excluded) 태그를 걸러내고 활성화된 태그의 data-tag 값만 추출
+                const activeSynonyms = Array.from(targetTags)
+                    .filter(tagEl => !tagEl.classList.contains('excluded'))
+                    .map(tagEl => tagEl.getAttribute('data-tag'));
+
+                // 최종 태그(finalTag)와 일치하는 것만 제외한 나머지(기존 대표 포함) 병합 대상 구성
+                const allTagsToMerge = [...new Set([...activeSynonyms, group.primary_tag])].filter(t => t !== finalTag);
+
+                if (allTagsToMerge.length === 0) {
+                    this.showToast('병합할 대상 태그가 없습니다. (모두 제외됨)', 'info');
+                    return;
+                }
+
                 mergeBtn.disabled = true;
                 mergeBtn.textContent = '처리 중...';
                 inputEl.disabled = true;
-                
-                // 사용자가 제안된 대표 태그를 바꿀 수 있으므로, 
-                // 기존 동의어(synonyms)와 원본 제안 태그(primary_tag) 모두를 합친 목록에서 
-                // 최종 태그(finalTag)와 일치하는 것만 제외한 나머지를 병합 대상으로 삼습니다.
-                const allTagsToMerge = [...new Set([...group.synonyms, group.primary_tag])].filter(t => t !== finalTag);
+                targetTags.forEach(t => t.style.pointerEvents = 'none');
 
                 await this.mergeTags(finalTag, allTagsToMerge);
                 
