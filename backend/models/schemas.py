@@ -140,3 +140,26 @@ class DeepAnalysisResult(BaseModel):
     atomic_concepts: List[AtomicConcept] = []
     related_topics: List[str] = []
 
+
+class TagGroup(BaseModel):
+    """A group of similar tags suggested for merging."""
+    primary_tag: str
+    synonyms: List[str]
+    reason: str
+
+
+class TagAnalysisResponse(BaseModel):
+    """Response from tag analysis."""
+    suggested_groups: List[TagGroup]
+
+
+class TagMergeRequest(BaseModel):
+    """Request to merge tags."""
+    target_tag: str
+    tags_to_merge: List[str]
+
+
+class FolderCleanupRequest(BaseModel):
+    """Request to cleanup a folder."""
+    folder: str
+

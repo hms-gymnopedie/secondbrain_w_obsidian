@@ -402,3 +402,96 @@ def _parse_deep_response(response_text: str, fallback_title: str = "") -> DeepAn
             atomic_concepts=[],
         )
 
+
+async def group_tags_with_ai(tags: list[str], provider: Optional[str] = None) -> list[dict]:
+    """Group similar tags using LLM synonyms analysis."""
+    if not tags:
+        return []
+
+    provider = provider or settings.ai_provider
+    
+    system_prompt = """당신은 지식 관리 및 온톨로지 전문가입니다. 주어진 태그 목록에서 의미가 같거나 매우 유사한 태그들을 그룹화하여 병합을 제안해주세요.
+
+반환 형식:
+{
+  "suggested_groups": [
+    {
+      "primary_tag": "대표로 사용할 태그 이름",
+      "synonyms": ["병합될 태그1", "병합될 태그2"],
+      "reason": "병합 이유 (간략히 한국어)"
+    }
+  ]
+}
+
+규칙:
+- 언어 차이(한글/영어), 유의어, 약어 등을 고려하세요 (예: #AI, #인공지능 -> 인공지능)
+- 확실히 유사한 경우만 그룹화하세요.
+- JSON만 반환하세요.
+"""
+
+    user_prompt = f"다음 태그 목록을 분석하여 유사한 태그들을 그룹화해주세요:\n\n{', '.join(tags)}"
+
+    try:
+        if provider == "openai":
+            response_text = await _call_openai_generic(system_prompt, user_prompt)
+        elif provider == "gemini":
+            response_text = await _call_gemini_generic(system_prompt, user_prompt)
+        elif provider == "ollama":
+            response_text = await _call_ollama_generic(system_prompt, user_prompt)
+        else:
+            return []
+
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
+        if json_match:
+            data = json.loads(json_match.group())
+            return data.get("suggested_groups", [])
+        return []
+    except Exception as e:
+        print(f"Tag grouping AI error: {e}")
+        return []
+
+
+async def _call_openai_generic(system_prompt: str, user_prompt: str) -> str:
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    response = await client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or ""
+
+
+async def _call_gemini_generic(system_prompt: str, user_prompt: str) -> str:
+    import google.generativeai as genai
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel(
+        settings.gemini_model,
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",
+            temperature=0.2,
+        ),
+    )
+    response = model.generate_content(f"{system_prompt}\n\n{user_prompt}")
+    return response.text or ""
+
+
+async def _call_ollama_generic(system_prompt: str, user_prompt: str) -> str:
+    import httpx
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{settings.ollama_base_url}/api/generate",
+            json={
+                "model": settings.ollama_model,
+                "prompt": f"{system_prompt}\n\n{user_prompt}",
+                "stream": False,
+                "format": "json",
+            },
+            timeout=120.0,
+        )
+        return response.json().get("response", "")
+

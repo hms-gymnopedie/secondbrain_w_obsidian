@@ -62,6 +62,23 @@
                 </div>
             </div>
 
+            <div class="sidebar-section" style="border-top: 1px solid var(--border-primary); padding-top: 20px;">
+                <h3 class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    지식 관리 도구
+                </h3>
+                <div class="admin-menu">
+                    <button class="menu-item" id="btn-tag-cleaner">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        <span>AI 태그 클리너</span>
+                    </button>
+                    <button class="menu-item" id="btn-vault-format">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        <span>폴더 포맷 (정리)</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="sidebar-footer">
                 <div class="connection-status" id="connection-status">
                     <span class="status-dot disconnected"></span>
@@ -176,6 +193,66 @@
                 <div class="results-grid" id="results-grid"></div>
             </section>
         </main>
+    </div>
+
+    <!-- Admin Modals -->
+    <div id="modal-tag-cleaner" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏷️ AI 태그 클리너</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">볼트 내의 유사한 태그들을 AI가 분석하여 병합을 제안합니다.</p>
+                <div id="tag-analysis-results" class="tag-analysis-list">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>태그 분석 중...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close-btn">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-vault-format" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🗑️ 폴더 포맷 (일괄 삭제)</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">특정 폴더 내의 모든 파일과 하위 폴더를 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+                <div class="form-group">
+                    <label for="format-folder-select">삭제할 폴더 선택:</label>
+                    <select id="format-folder-select" class="form-select">
+                        <option value="">폴더를 선택하세요</option>
+                    </select>
+                </div>
+                
+                <div id="folder-info-container" style="display: none; margin-bottom: 20px;">
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border: 1px solid var(--border-primary);">
+                        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: var(--text-primary);">선택된 폴더 정보</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                            <li>하위 폴더: <strong id="info-subfolders" style="color: var(--text-primary);">0</strong>개</li>
+                            <li>파일 수: <strong id="info-files" style="color: var(--text-primary);">0</strong>개</li>
+                            <li>총 용량: <strong id="info-size" style="color: var(--text-primary);">0 B</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="warning-box">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>주의: 선택한 폴더의 모든 내용이 영구적으로 삭제됩니다.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close-btn">취소</button>
+                <button id="btn-do-format" class="btn btn-danger" disabled>폴더 비우기</button>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Container -->

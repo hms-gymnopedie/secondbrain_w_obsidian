@@ -168,12 +168,13 @@ async def write_note(
     note_path.write_text(content, encoding="utf-8")
 
     # Update MOCs for each keyword
+    sanitized_title = sanitize_filename(summary_result.title)
     for keyword in summary_result.keywords[:5]:  # Top 5 keywords
-        update_moc(keyword, summary_result.title, str(vault))
+        update_moc(keyword, sanitized_title, str(vault))
 
     # Update related notes (add backlink)
     for related in related_notes:
-        _add_backlink(related, summary_result.title, str(vault))
+        _add_backlink(related, sanitized_title, str(vault))
 
     return str(note_path.relative_to(vault_root))
 
@@ -219,31 +220,34 @@ async def write_deep_notes(
     concepts_dir.mkdir(parents=True, exist_ok=True)
 
     parent_title = analysis.title
+    sanitized_parent_title = sanitize_filename(parent_title)
     section_titles = []
     concept_titles = []
 
     # --- 1. Write section notes ---
-    section_dir = vault / "01_Sources" / sanitize_filename(parent_title)
+    section_dir = vault / "01_Sources" / sanitized_parent_title
     section_dir.mkdir(parents=True, exist_ok=True)
 
     for section in analysis.sections:
+        sanitized_section_title = sanitize_filename(section.title)
         section_content = _generate_section_note(
-            section, parent_title, source_name, source_url
+            section, sanitized_parent_title, source_name, source_url
         )
         section_path = _safe_write(section_dir, section.title, section_content)
-        section_titles.append(section.title)
+        section_titles.append(sanitized_section_title)
 
     # --- 2. Write atomic concept notes ---
     for concept in analysis.atomic_concepts:
+        sanitized_concept_name = sanitize_filename(concept.name)
         # Only create if doesn't already exist
-        existing = list(concepts_dir.glob(f"{sanitize_filename(concept.name)}*.md"))
+        existing = list(concepts_dir.glob(f"{sanitized_concept_name}*.md"))
         if existing:
             # Add backlink to existing concept note
-            _add_backlink(concept.name, parent_title, str(vault))
+            _add_backlink(sanitized_concept_name, sanitized_parent_title, str(vault))
         else:
-            concept_content = _generate_concept_note(concept, parent_title)
+            concept_content = _generate_concept_note(concept, sanitized_parent_title)
             _safe_write(concepts_dir, concept.name, concept_content)
-        concept_titles.append(concept.name)
+        concept_titles.append(sanitized_concept_name)
 
     # --- 3. Write parent note ---
     parent_content = _generate_parent_note(
@@ -254,13 +258,13 @@ async def write_deep_notes(
 
     # --- 4. Update MOCs ---
     for keyword in analysis.keywords[:7]:
-        update_moc(keyword, parent_title, str(vault))
+        update_moc(keyword, sanitized_parent_title, str(vault))
 
     # --- 5. Cross-link with existing related notes ---
     related_notes = find_related_notes(analysis.keywords, str(vault))
     for related in related_notes:
-        if related != parent_title:
-            _add_backlink(related, parent_title, str(vault))
+        if related != sanitized_parent_title:
+            _add_backlink(related, sanitized_parent_title, str(vault))
 
     return str(parent_path.relative_to(vault_root))
 
@@ -480,16 +484,18 @@ def delete_note_from_vault(
     else:
         print(f"   ⚠️ 파일을 찾을 수 없음")
 
+    sanitized_note_title = sanitize_filename(note_title)
+
     # 2. Delete section subdirectory (for deep analysis notes)
-    section_dir = vault / "01_Sources" / sanitize_filename(note_title)
+    section_dir = vault / "01_Sources" / sanitized_note_title
     if section_dir.exists() and section_dir.is_dir():
         shutil.rmtree(section_dir)
         print(f"   ✅ 섹션 폴더 삭제: {section_dir}")
 
     # 3. Remove backlinks from all other notes and cleanup orphans
-    link_pattern = f"[[{note_title}]]"
+    link_pattern = f"[[{sanitized_note_title}]]"
     line_patterns = [
-        f"- [[{note_title}]]",
+        f"- [[{sanitized_note_title}]]",
         f"- {link_pattern}",
         f'- "{link_pattern}"',
     ]
@@ -568,4 +574,83 @@ def _remove_from_moc_index(keyword: str, folder: Optional[str] = None) -> None:
             index_path.write_text(content, encoding="utf-8")
     except Exception:
         pass
+
+
+def delete_folder_contents(folder_name: str) -> dict:
+    """Delete all files and subdirectories within a specific folder."""
+    import shutil
+    
+    vault_root = Path(settings.vault_path).resolve()
+    target_dir = vault_root / sanitize_filename(folder_name)
+    
+    if not target_dir.exists():
+        return {"success": False, "message": f"폴더를 찾을 수 없습니다: {folder_name}"}
+    
+    if not target_dir.is_dir():
+        return {"success": False, "message": f"{folder_name}은 폴더가 아닙니다."}
+
+    # Safety: don't allow formatting system folders or the root
+    ignored = {"00_Inbox", "01_Sources", "02_MOC", "03_Concepts", "templates"}
+    if folder_name in ignored or target_dir == vault_root:
+         return {"success": False, "message": "시스템 폴더나 볼트 루트는 포맷할 수 없습니다."}
+
+    count = 0
+    errors = []
+    
+    for item in target_dir.iterdir():
+        try:
+            if item.is_file():
+                item.unlink()
+                count += 1
+            elif item.is_dir():
+                shutil.rmtree(item)
+                count += 1
+        except Exception as e:
+            errors.append(f"{item.name}: {str(e)}")
+            
+    return {
+        "success": True, 
+        "message": f"{count}개의 항목이 삭제되었습니다.", 
+        "deleted_count": count,
+        "errors": errors
+    }
+
+
+def merge_tags_in_vault(target_tag: str, tags_to_merge: list[str]) -> dict:
+    """Replace all occurrences of specified tags with a target tag in the whole vault."""
+    import re
+    
+    vault_root = Path(settings.vault_path).resolve()
+    count = 0
+    
+    # Prefix tags with # if not present
+    target = target_tag if target_tag.startswith("#") else f"#{target_tag}"
+    to_replace = [t if t.startswith("#") else f"#{t}" for t in tags_to_merge]
+    
+    # Regex to match tags while avoiding partial matches (e.g., #AI in #AIR)
+    # This matches #tag followed by space, comma, bracket, newline, or end of string
+    def get_tag_pattern(tag):
+        return re.compile(rf"{re.escape(tag)}(?=[ \t,\n\]}})]|$)")
+
+    patterns = [(tag, get_tag_pattern(tag)) for tag in to_replace]
+
+    for md_file in vault_root.rglob("*.md"):
+        try:
+            content = md_file.read_text(encoding="utf-8")
+            original = content
+            
+            for tag_name, pattern in patterns:
+                content = pattern.sub(target, content)
+            
+            if content != original:
+                md_file.write_text(content, encoding="utf-8")
+                count += 1
+        except Exception as e:
+            print(f"Error merging tags in {md_file}: {e}")
+            
+    return {
+        "success": True,
+        "message": f"{count}개의 파일에서 태그가 병합되었습니다.",
+        "affected_files": count
+    }
 

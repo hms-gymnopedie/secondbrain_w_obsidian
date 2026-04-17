@@ -4,6 +4,7 @@ Handles file uploads, URL scraping, and processing history.
 """
 import os
 import uuid
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -20,10 +21,24 @@ from backend.models.schemas import (
     NoteResult,
     HistoryItem,
     SourceType,
+    TagAnalysisResponse,
+    TagGroup,
+    TagMergeRequest,
+    FolderCleanupRequest,
 )
 from backend.services.extractor import detect_source_type, extract_content, extract_from_url
-from backend.services.summarizer import summarize_content, analyze_document_deep, should_deep_analyze
-from backend.services.obsidian_writer import write_note, write_deep_notes
+from backend.services.summarizer import (
+    summarize_content, 
+    analyze_document_deep, 
+    should_deep_analyze,
+    group_tags_with_ai
+)
+from backend.services.obsidian_writer import (
+    write_note, 
+    write_deep_notes, 
+    delete_folder_contents, 
+    merge_tags_in_vault
+)
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -52,7 +67,8 @@ async def broadcast_status(status: ProcessingStatus):
         except Exception:
             disconnected.append(conn)
     for conn in disconnected:
-        active_connections.remove(conn)
+        if conn in active_connections:
+            active_connections.remove(conn)
 
 
 @router.websocket("/ws")
@@ -64,7 +80,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
+        if websocket in active_connections:
+            active_connections.remove(websocket)
 
 
 @router.post("/upload", response_model=List[UploadResponse])
@@ -128,7 +145,6 @@ async def upload_files(
         responses.append(response)
 
         # Process the file asynchronously
-        import asyncio
         asyncio.create_task(
             _process_file(file_id, str(file_path), file.filename or "", source_type, folder)
         )
@@ -155,6 +171,90 @@ async def process_url(request: URLRequest):
 
     return response
 
+
+@router.get("/tags/analyze", response_model=TagAnalysisResponse)
+async def analyze_tags():
+    """Extract all tags from vault and find synonyms via AI."""
+    vault_root = Path(settings.vault_path).resolve()
+    import re
+    tag_pattern = re.compile(r'(?<!#)\B#([a-zA-Z0-9_\-\u3131-\u318E\uAC00-\uD7A3]+)\b')
+    all_tags = set()
+
+    for path in vault_root.rglob("*.md"):
+        if ".obsidian" in path.parts: continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                all_tags.update(tag_pattern.findall(f.read()))
+        except: pass
+
+    if not all_tags:
+        return TagAnalysisResponse(suggested_groups=[])
+
+    groups_data = await group_tags_with_ai(list(all_tags))
+
+    suggested_groups = [
+        TagGroup(
+            primary_tag=g["primary_tag"],
+            synonyms=g["synonyms"],
+            reason=g["reason"]
+        ) for g in groups_data
+    ]
+
+    return TagAnalysisResponse(suggested_groups=suggested_groups)
+
+
+@router.post("/tags/merge")
+async def merge_tags(request: TagMergeRequest):
+    """Merge specified tags into a target tag."""
+    result = merge_tags_in_vault(request.target_tag, request.tags_to_merge)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
+
+
+@router.post("/folders/cleanup")
+async def cleanup_folder(request: FolderCleanupRequest):
+    """Format a folder by deleting its contents."""
+    result = delete_folder_contents(request.folder)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
+@router.get("/folders/{folder_name}/info")
+async def get_folder_info(folder_name: str):
+    """Get information about a specific folder's contents."""
+    vault_root = Path(settings.vault_path).resolve()
+    target_dir = vault_root / folder_name
+
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
+
+    file_count = 0
+    subfolder_count = 0
+    total_size = 0
+
+    for item in target_dir.rglob("*"):
+        if item.is_file():
+            file_count += 1
+            total_size += item.stat().st_size
+        elif item.is_dir() and item != target_dir:
+            subfolder_count += 1
+
+    # Convert size to readable format
+    if total_size < 1024:
+        size_str = f"{total_size} B"
+    elif total_size < 1024 * 1024:
+        size_str = f"{total_size / 1024:.1f} KB"
+    else:
+        size_str = f"{total_size / (1024 * 1024):.1f} MB"
+
+    return {
+        "folder": folder_name,
+        "files": file_count,
+        "subfolders": subfolder_count,
+        "size": size_str
+    }
 
 @router.get("/folders", response_model=List[str])
 async def get_folders():
@@ -200,7 +300,7 @@ async def get_stats():
     total_size = 0
     
     # Pattern designed to match Obsidian tags covering alphanumeric and Korean characters
-    tag_pattern = re.compile(r'(?<!#)\B#([a-zA-Z0-9_\-\u3131-\u318E\uAC00-\uD7A3]+)\b')
+    tag_pattern = re.compile(r'(?<!#)\B#([a-zA-Z0-9_\\-\\u3131-\\u318E\\uAC00-\\uD7A3]+)\\b')
     
     for path in vault_root.rglob("*"):
         if ".obsidian" in path.parts:
@@ -294,7 +394,8 @@ async def delete_note(note_id: str):
         print(f"⚠️ 삭제 건너뜀: vault_path={item.vault_path}, status={item.status}")
 
     # Remove from history
-    processing_history.remove(item)
+    if item in processing_history:
+        processing_history.remove(item)
 
     # Broadcast deletion
     import json
@@ -306,7 +407,8 @@ async def delete_note(note_id: str):
         except Exception:
             disconnected.append(conn)
     for conn in disconnected:
-        active_connections.remove(conn)
+        if conn in active_connections:
+            active_connections.remove(conn)
 
     return {"message": "노트가 삭제되었습니다.", "id": note_id}
 
@@ -330,158 +432,79 @@ async def _process_file(
     processing_history.append(history_item)
 
     try:
-        # Stage 1: Extract content
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=original_filename,
-                stage=ProcessingStage.EXTRACTING,
-                progress=20,
-                message="텍스트를 추출하고 있습니다...",
-            )
-        )
+        # Stage 1: Extract content (0-30%)
+        await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.EXTRACTING, progress=10, message="파일 읽는 중..."))
+        await asyncio.sleep(0.8)
 
         extraction = await extract_content(file_path, source_type)
+
+        await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.EXTRACTING, progress=30, message="텍스트 변환 완료"))
+        await asyncio.sleep(0.8)
 
         if not extraction.text.strip():
             history_item.status = ProcessingStage.ERROR
             history_item.error_message = "텍스트를 추출할 수 없습니다."
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.ERROR,
-                    progress=0,
-                    message="텍스트 추출 실패",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.ERROR, progress=0, message="텍스트 추출 실패"))
             return
 
-        # Stage 2: Analyze with AI
+        # Stage 2: Analyze with AI (30-80%)
         use_deep = should_deep_analyze(extraction.text)
 
         if use_deep:
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.SUMMARIZING,
-                    progress=40,
-                    message="🔬 AI가 문서를 심층 분해하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.SUMMARIZING, progress=45, message="🔬 AI 심층 분석 중..."))
+            await asyncio.sleep(1.0)
 
-            analysis = await analyze_document_deep(
-                text=extraction.text,
-                title=extraction.title,
-                source=original_filename,
-            )
+            analysis = await analyze_document_deep(text=extraction.text, title=extraction.title, source=original_filename)
+
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.SUMMARIZING, progress=75, message="지식 구조화 완료"))
+            await asyncio.sleep(1.0)
 
             # Stage 3: Write hierarchical notes
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.WRITING,
-                    progress=75,
-                    message=f"📝 {len(analysis.sections)}개 섹션 + {len(analysis.atomic_concepts)}개 개념 노트 생성 중...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.WRITING, progress=85, message="Obsidian 노트 생성 중..."))
+            await asyncio.sleep(0.8)
 
-            vault_path = await write_deep_notes(
-                analysis=analysis,
-                source_type=source_type,
-                source_name=original_filename,
-                folder=folder,
-            )
+            vault_path = await write_deep_notes(analysis=analysis, source_type=source_type, source_name=original_filename, folder=folder)
 
-            total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
             history_item.title = analysis.title
             history_item.summary = analysis.overall_summary
             history_item.keywords = analysis.keywords
             history_item.vault_path = vault_path
             history_item.status = ProcessingStage.DONE
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.DONE,
-                    progress=100,
-                    message=f"✅ 심층 분석 완료! 총 {total_notes}개 노트 생성: {vault_path}",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.DONE, progress=100, message="✅ 완료!"))
 
         else:
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.SUMMARIZING,
-                    progress=50,
-                    message="AI가 내용을 분석하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.SUMMARIZING, progress=50, message="AI 요약 중..."))
+            await asyncio.sleep(1.0)
 
-            summary = await summarize_content(
-                text=extraction.text,
-                title=extraction.title,
-                source=original_filename,
-            )
+            summary = await summarize_content(text=extraction.text, title=extraction.title, source=original_filename)
+
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.SUMMARIZING, progress=75, message="요약 완료"))
+            await asyncio.sleep(1.0)
 
             # Stage 3: Write to Obsidian vault
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.WRITING,
-                    progress=80,
-                    message="Obsidian 노트를 생성하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.WRITING, progress=90, message="노트 기록 중..."))
+            await asyncio.sleep(0.8)
 
-            vault_path = await write_note(
-                summary_result=summary,
-                source_type=source_type,
-                source_name=original_filename,
-                folder=folder,
-            )
+            vault_path = await write_note(summary_result=summary, source_type=source_type, source_name=original_filename, folder=folder)
 
-            # Done
             history_item.title = summary.title
             history_item.summary = summary.summary
             history_item.keywords = summary.keywords
             history_item.vault_path = vault_path
             history_item.status = ProcessingStage.DONE
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=original_filename,
-                    stage=ProcessingStage.DONE,
-                    progress=100,
-                    message=f"완료! 노트가 생성되었습니다: {vault_path}",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.DONE, progress=100, message="✅ 완료!"))
 
     except Exception as e:
         history_item.status = ProcessingStage.ERROR
         history_item.error_message = str(e)
-
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=original_filename,
-                stage=ProcessingStage.ERROR,
-                progress=0,
-                message=f"처리 중 오류 발생: {str(e)}",
-            )
-        )
+        await broadcast_status(ProcessingStatus(id=file_id, filename=original_filename, stage=ProcessingStage.ERROR, progress=0, message=f"오류: {str(e)}"))
 
     finally:
-        # Clean up uploaded file
         try:
-            os.remove(file_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
         except Exception:
             pass
 
@@ -499,122 +522,58 @@ async def _process_url(file_id: str, url: str, folder: Optional[str] = None):
     processing_history.append(history_item)
 
     try:
-        # Stage 1: Extract from URL
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=url,
-                stage=ProcessingStage.EXTRACTING,
-                progress=20,
-                message="웹페이지를 스크래핑하고 있습니다...",
-            )
-        )
+        # Stage 1: Extract (0-30%)
+        await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.EXTRACTING, progress=10, message="URL 연결 시도 중..."))
+        await asyncio.sleep(0.8)
 
+        await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.EXTRACTING, progress=25, message="웹페이지 스크래핑 중..."))
         extraction = await extract_from_url(url)
+        await asyncio.sleep(0.8)
 
         if not extraction.text.strip():
             history_item.status = ProcessingStage.ERROR
-            history_item.error_message = "웹페이지에서 텍스트를 추출할 수 없습니다."
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.ERROR,
-                    progress=0,
-                    message="웹페이지 스크래핑 실패",
-                )
-            )
+            history_item.error_message = "내용을 가져올 수 없습니다."
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.ERROR, progress=0, message="스크래핑 실패"))
             return
 
-        # Stage 2: Analyze with AI
+        # Stage 2: Analyze (30-80%)
         use_deep = should_deep_analyze(extraction.text)
 
         if use_deep:
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.SUMMARIZING,
-                    progress=40,
-                    message="🔬 AI가 문서를 심층 분해하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.SUMMARIZING, progress=45, message="🔬 심층 분석 중..."))
+            await asyncio.sleep(1.0)
 
-            analysis = await analyze_document_deep(
-                text=extraction.text,
-                title=extraction.title,
-                source=url,
-            )
+            analysis = await analyze_document_deep(text=extraction.text, title=extraction.title, source=url)
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.WRITING,
-                    progress=75,
-                    message=f"📝 {len(analysis.sections)}개 섹션 + {len(analysis.atomic_concepts)}개 개념 노트 생성 중...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.SUMMARIZING, progress=70, message="지식 구조화 완료"))
+            await asyncio.sleep(1.0)
 
-            vault_path = await write_deep_notes(
-                analysis=analysis,
-                source_type=SourceType.WEB,
-                source_name=extraction.title or url,
-                source_url=url,
-                folder=folder,
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.WRITING, progress=85, message="연관 노트 생성 중..."))
+            await asyncio.sleep(0.8)
 
-            total_notes = 1 + len(analysis.sections) + len(analysis.atomic_concepts)
+            vault_path = await write_deep_notes(analysis=analysis, source_type=SourceType.WEB, source_name=extraction.title or url, source_url=url, folder=folder)
+
             history_item.title = analysis.title
             history_item.summary = analysis.overall_summary
             history_item.keywords = analysis.keywords
             history_item.vault_path = vault_path
             history_item.status = ProcessingStage.DONE
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.DONE,
-                    progress=100,
-                    message=f"✅ 심층 분석 완료! 총 {total_notes}개 노트 생성: {vault_path}",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.DONE, progress=100, message="✅ 완료!"))
 
         else:
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.SUMMARIZING,
-                    progress=50,
-                    message="AI가 내용을 분석하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.SUMMARIZING, progress=50, message="AI 요약 진행 중..."))
+            await asyncio.sleep(1.0)
 
-            summary = await summarize_content(
-                text=extraction.text,
-                title=extraction.title,
-                source=url,
-            )
+            summary = await summarize_content(text=extraction.text, title=extraction.title, source=url)
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.WRITING,
-                    progress=80,
-                    message="Obsidian 노트를 생성하고 있습니다...",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.SUMMARIZING, progress=75, message="요약 완료"))
+            await asyncio.sleep(1.0)
 
-            vault_path = await write_note(
-                summary_result=summary,
-                source_type=SourceType.WEB,
-                source_name=extraction.title or url,
-                source_url=url,
-                folder=folder,
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.WRITING, progress=90, message="Obsidian 기록 중..."))
+            await asyncio.sleep(0.8)
+
+            vault_path = await write_note(summary_result=summary, source_type=SourceType.WEB, source_name=extraction.title or url, source_url=url, folder=folder)
 
             history_item.title = summary.title
             history_item.summary = summary.summary
@@ -622,26 +581,9 @@ async def _process_url(file_id: str, url: str, folder: Optional[str] = None):
             history_item.vault_path = vault_path
             history_item.status = ProcessingStage.DONE
 
-            await broadcast_status(
-                ProcessingStatus(
-                    id=file_id,
-                    filename=url,
-                    stage=ProcessingStage.DONE,
-                    progress=100,
-                    message=f"완료! 노트가 생성되었습니다: {vault_path}",
-                )
-            )
+            await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.DONE, progress=100, message="✅ 완료!"))
 
     except Exception as e:
         history_item.status = ProcessingStage.ERROR
         history_item.error_message = str(e)
-
-        await broadcast_status(
-            ProcessingStatus(
-                id=file_id,
-                filename=url,
-                stage=ProcessingStage.ERROR,
-                progress=0,
-                message=f"처리 중 오류 발생: {str(e)}",
-            )
-        )
+        await broadcast_status(ProcessingStatus(id=file_id, filename=url, stage=ProcessingStage.ERROR, progress=0, message=f"오류: {str(e)}"))

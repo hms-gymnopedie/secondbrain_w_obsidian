@@ -16,9 +16,222 @@ class DashboardUI {
         this.statToday = document.getElementById('stat-today');
         this.statKeywords = document.getElementById('stat-keywords');
 
+        // Admin
+        this.initAdmin();
+
         // Track items
         this.queueItems = new Map();  // id -> element
         this.resultCards = new Map(); // id -> data
+    }
+
+    // -------- Admin Tools --------
+    initAdmin() {
+        const btnTag = document.getElementById('btn-tag-cleaner');
+        const btnFormat = document.getElementById('btn-vault-format');
+        const modalTags = document.getElementById('modal-tag-cleaner');
+        const modalFormat = document.getElementById('modal-vault-format');
+        const formatSelect = document.getElementById('format-folder-select');
+        const btnDoFormat = document.getElementById('btn-do-format');
+
+        // Modal close buttons
+        document.querySelectorAll('.modal-close, .modal-close-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+            });
+        });
+
+        // Tag Cleaner
+        if (btnTag) {
+            btnTag.addEventListener('click', () => {
+                modalTags.classList.add('active');
+                this.analyzeTags();
+            });
+        }
+
+        // Vault Format
+        if (btnFormat) {
+            btnFormat.addEventListener('click', async () => {
+                modalFormat.classList.add('active');
+                await this.loadFoldersIntoSelect(formatSelect);
+            });
+        }
+
+        if (formatSelect) {
+            formatSelect.addEventListener('change', async () => {
+                const folderName = formatSelect.value;
+                const infoContainer = document.getElementById('folder-info-container');
+                const btnDoFormat = document.getElementById('btn-do-format');
+                const infoSubfolders = document.getElementById('info-subfolders');
+                const infoFiles = document.getElementById('info-files');
+                const infoSize = document.getElementById('info-size');
+
+                btnDoFormat.disabled = !folderName;
+                
+                if (folderName) {
+                    try {
+                        const response = await fetch(`/api/folders/${encodeURIComponent(folderName)}/info`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            infoSubfolders.textContent = data.subfolders;
+                            infoFiles.textContent = data.files;
+                            infoSize.textContent = data.size;
+                            infoContainer.style.display = 'block';
+                        } else {
+                            throw new Error('정보 조회 실패');
+                        }
+                    } catch (e) {
+                        console.error('Failed to load folder info:', e);
+                        infoContainer.style.display = 'none';
+                    }
+                } else {
+                    infoContainer.style.display = 'none';
+                }
+            });
+        }
+
+        if (btnDoFormat) {
+            btnDoFormat.addEventListener('click', () => {
+                const folder = formatSelect.value;
+                const fileCount = document.getElementById('info-files').textContent;
+                if (confirm(`정말로 '${folder}' 폴더와 안에 있는 ${fileCount}개의 파일을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                    this.cleanupFolder(folder);
+                }
+            });
+        }
+    }
+
+    async analyzeTags() {
+        const container = document.getElementById('tag-analysis-results');
+        container.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>AI가 태그를 분석하고 있습니다...</p></div>`;
+
+        try {
+            const response = await fetch('/api/tags/analyze');
+            if (!response.ok) throw new Error('태그 분석 실패');
+            
+            const data = await response.json();
+            this.renderTagSuggestions(data.suggested_groups);
+        } catch (e) {
+            container.innerHTML = `<p style="color:var(--accent-red); padding:20px;">분석 중 오류가 발생했습니다: ${e.message}</p>`;
+        }
+    }
+
+    renderTagSuggestions(groups) {
+        const container = document.getElementById('tag-analysis-results');
+        if (!groups || groups.length === 0) {
+            container.innerHTML = `<p style="padding:20px; text-align:center; color:var(--text-secondary);">병합이 권장되는 유사한 태그가 없습니다.</p>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        groups.forEach(group => {
+            const el = document.createElement('div');
+            el.className = 'tag-group-card';
+            el.innerHTML = `
+                <div class="tag-group-header">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span style="color: var(--text-accent); font-weight: 600;">#</span>
+                        <input type="text" class="primary-tag-input" value="${group.primary_tag}" title="최종 병합될 태그 이름을 수정할 수 있습니다." style="border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); padding: 4px 8px; border-radius: 4px; font-size: 13px; outline: none; width: 140px; font-weight: 600; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--accent-blue)'" onblur="this.style.borderColor='var(--border-primary)'" />
+                    </div>
+                    <button class="btn btn-primary btn-sm btn-merge" style="padding: 4px 10px; font-size: 11px;">병합 실행</button>
+                </div>
+                <div class="tag-synonyms" style="margin-top: 8px;">
+                    <span class="synonym-tag" style="background: rgba(0,122,255,0.1); color: var(--accent-blue); border-color: rgba(0,122,255,0.2); text-decoration: none;">기존 대표: #${group.primary_tag}</span>
+                    ${group.synonyms.map(s => `<span class="synonym-tag">#${s}</span>`).join('')}
+                </div>
+                <div class="tag-reason">${group.reason}</div>
+            `;
+
+            const mergeBtn = el.querySelector('.btn-merge');
+            const inputEl = el.querySelector('.primary-tag-input');
+            
+            mergeBtn.addEventListener('click', async () => {
+                const finalTag = inputEl.value.trim().replace(/^#/, ''); // 맨 앞의 # 제거 (사용자가 실수로 입력한 경우 대비)
+                if (!finalTag) {
+                    this.showToast('대표 태그 이름을 입력해주세요.', 'error');
+                    inputEl.focus();
+                    return;
+                }
+
+                mergeBtn.disabled = true;
+                mergeBtn.textContent = '처리 중...';
+                inputEl.disabled = true;
+                
+                // 사용자가 제안된 대표 태그를 바꿀 수 있으므로, 
+                // 기존 동의어(synonyms)와 원본 제안 태그(primary_tag) 모두를 합친 목록에서 
+                // 최종 태그(finalTag)와 일치하는 것만 제외한 나머지를 병합 대상으로 삼습니다.
+                const allTagsToMerge = [...new Set([...group.synonyms, group.primary_tag])].filter(t => t !== finalTag);
+
+                await this.mergeTags(finalTag, allTagsToMerge);
+                
+                el.style.opacity = '0.5';
+                el.style.pointerEvents = 'none';
+                mergeBtn.textContent = '완료됨';
+            });
+
+            container.appendChild(el);
+        });
+    }
+
+    async mergeTags(target, toMerge) {
+        try {
+            const response = await fetch('/api/tags/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_tag: target, tags_to_merge: toMerge })
+            });
+            if (response.ok) {
+                this.showToast(`✅ 태그 병합 완료: #${target}`, 'success');
+            } else {
+                throw new Error('병합 실패');
+            }
+        } catch (e) {
+            this.showToast(`❌ 태그 병합 오류: ${e.message}`, 'error');
+        }
+    }
+
+    async loadFoldersIntoSelect(selectEl) {
+        try {
+            const response = await fetch('/api/folders');
+            if (response.ok) {
+                const folders = await response.json();
+                selectEl.innerHTML = '<option value="">폴더를 선택하세요</option>';
+                folders.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f;
+                    opt.textContent = f;
+                    selectEl.appendChild(opt);
+                });
+            }
+        } catch (e) {
+            console.error('Failed to load folders:', e);
+        }
+    }
+
+    async cleanupFolder(folder) {
+        const btn = document.getElementById('btn-do-format');
+        btn.disabled = true;
+        btn.textContent = '삭제 중...';
+
+        try {
+            const response = await fetch('/api/folders/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder: folder })
+            });
+            
+            if (response.ok) {
+                this.showToast(`🗑️ '${folder}' 폴더가 정리되었습니다.`, 'success');
+                document.getElementById('modal-vault-format').classList.remove('active');
+            } else {
+                const data = await response.json();
+                throw new Error(data.detail || '정리 실패');
+            }
+        } catch (e) {
+            this.showToast(`❌ 오류: ${e.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '폴더 비우기';
+        }
     }
 
     // -------- Queue --------
