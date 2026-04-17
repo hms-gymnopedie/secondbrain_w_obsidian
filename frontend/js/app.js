@@ -68,13 +68,23 @@
 
     // -------- File Upload --------
     async function handleFilesSelected(files) {
+        const categoryInput = document.getElementById('category-input');
+        const folderName = categoryInput ? categoryInput.value.trim() : '';
+
+        if (!folderName) {
+            dashboard.showToast('저장할 폴더명을 먼저 선택하거나 입력해주세요.', 'error');
+            if (categoryInput) {
+                categoryInput.focus();
+                // 시각적으로 강조하기 위해 일시적으로 테두리를 빨간색으로 변경
+                categoryInput.parentElement.style.boxShadow = '0 0 0 3px rgba(255, 59, 48, 0.3)';
+                setTimeout(() => { categoryInput.parentElement.style.boxShadow = ''; }, 1500);
+            }
+            return;
+        }
+
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
-
-        const categoryInput = document.getElementById('category-input');
-        if (categoryInput && categoryInput.value.trim() !== '') {
-            formData.append('folder', categoryInput.value.trim());
-        }
+        formData.append('folder', folderName);
 
         dashboard.showToast(`📤 ${files.length}개 파일 업로드 중...`, 'info');
 
@@ -129,7 +139,18 @@
         }
 
         const categoryInput = document.getElementById('category-input');
-        const folder = categoryInput && categoryInput.value.trim() !== '' ? categoryInput.value.trim() : null;
+        const folderName = categoryInput ? categoryInput.value.trim() : '';
+
+        if (!folderName) {
+            dashboard.showToast('저장할 폴더명을 먼저 선택하거나 입력해주세요.', 'error');
+            if (categoryInput) {
+                categoryInput.focus();
+                // 시각적으로 강조
+                categoryInput.parentElement.style.boxShadow = '0 0 0 3px rgba(255, 59, 48, 0.3)';
+                setTimeout(() => { categoryInput.parentElement.style.boxShadow = ''; }, 1500);
+            }
+            return;
+        }
 
         urlInput.value = '';
         urlBtn.disabled = true;
@@ -139,7 +160,7 @@
             const response = await fetch(`${API_BASE}/api/url`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, folder }),
+                body: JSON.stringify({ url, folder: folderName }),
             });
 
             if (!response.ok) {
